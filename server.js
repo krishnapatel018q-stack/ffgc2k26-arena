@@ -57,7 +57,8 @@ const initial = {
   tasks: [],
   announcements: [],
   polls: [],
-  history: []
+  history: [],
+  teams: [], spotlight: []
 };
 
 let db = initial;
@@ -111,6 +112,8 @@ async function load() {
     await save();
   } else {
     db = value;
+    db.teams ||= []; db.spotlight ||= [];
+    for (const m of db.members) m.profile ||= {};
   }
 }
 
@@ -185,6 +188,31 @@ function isAdmin(req) {
   }
 }
 
+function memberSession(req) {
+  const raw = (req.headers.cookie || '').split(';').map(x => x.trim()).find(x => x.startsWith('arena_member='));
+  if (!raw) return null;
+  const t = raw.slice('arena_member='.length), i = t.lastIndexOf('.');
+  if (i < 0 || !secureEq(sign('member:' + t.slice(0,i)),t.slice(i+1))) return null;
+  try {
+    const d = JSON.parse(Buffer.from(t.slice(0,i),'base64url'));
+    if (d.exp < Date.now()) return null;
+    const m = db.members.find(x => x.id === d.id);
+    return m && m.codeHash && secureEq(m.codeHash,d.codeHash) ? m : null;
+  } catch { return null; }
+}
+function safeProfile(m, detailed=false) {
+  const pr=m.profile||{};
+  const team=db.teams.find(t => t.members?.includes(m.id));
+  const rank=ranked().find(x=>x.id===m.id)?.rank;
+  return {id:m.id,name:m.name,rank,points:m.points,photo:pr.photo||'',bio:pr.bio||'',title:pr.title||'',team:team?.name||'',captain:team?.captainId===m.id,achievements:detailed?(pr.achievements||[]):(pr.achievements||[]).filter(x=>x.public),records:detailed?(pr.records||[]):(pr.records||[]).filter(x=>x.public),visibility:pr.visibility||'private'};
+}
+function teamView(t) {
+  const ms=(t.members||[]).map(id=>db.members.find(m=>m.id===id)).filter(Boolean);
+  return {id:t.id,name:t.name,captainId:t.captainId||'',captain:db.members.find(m=>m.id===t.captainId)?.name||'',members:ms.map(m=>({id:m.id,name:m.name})),memberPoints:ms.reduce((sum,m)=>sum+m.points,0),competitionPoints:t.competitionPoints||0};
+}
+function photoValid(v) {
+  return v === '' || (typeof v==='string' && v.length<=65000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v));
+}
 function ranked() {
   return [...db.members]
     .sort((a, b) =>
@@ -249,6 +277,9 @@ function publicData(admin) {
           p.status === 'closed' && p.resultsVisible === true
           ? nominationSummary(p).nominated : null
       })),
+    teams: locked ? [] : db.teams.map(teamView).sort((a,b)=>b.competitionPoints-a.competitionPoints),
+    spotlight: locked ? [] : db.spotlight.filter(x=>!x.expires || new Date(x.expires).getTime()>Date.now()).sort((a,b)=>a.order-b.order).map(x=>({id:x.id,title:x.title,description:x.description,theme:x.theme,member:safeProfile(db.members.find(m=>m.id===x.memberId)||{id:'',name:'Former member',points:0,profile:{}},false)})),
+    publicProfiles: locked ? [] : db.members.filter(m=>m.profile?.visibility==='public').map(m=>safeProfile(m,false)),
     admin
   };
 }
@@ -334,6 +365,40 @@ async function api(req, res, url) {
     return send(res, 200, publicData(admin));
   }
 
+  // MEMBER LOGIN: existing private voting code, never returned to browser.
+  if (route === '/api/member/login' && req.method === 'POST') {
+    if (!required(b.code,100)) return bad(res,'Enter private member ID');
+    const m=db.members.find(x=>x.codeHash && secureEq(x.codeHash,hash(b.code.trim().toUpperCase())));
+    if (!m) return bad(res,'Invalid private member ID',403);
+    const v=Buffer.from(JSON.stringify({id:m.id,codeHash:m.codeHash,exp:Date.now()+7*86400000})).toString('base64url');
+    res.setHeader('Set-Cookie',`arena_member=${v}.${sign('member:'+v)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800${process.env.COOKIE_SECURE==='true'?'; Secure':''}`);
+    return send(res,200,{ok:true});
+  }
+  if (route === '/api/member/logout' && req.method === 'POST') {
+    res.setHeader('Set-Cookie','arena_member=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+    return send(res,200,{ok:true});
+  }
+  if (route === '/api/member/me' && req.method === 'GET') {
+    const m=memberSession(req);
+    return m ? send(res,200,{profile:safeProfile(m,true)}) : bad(res,'Member login required',401);
+  }
+  if (route === '/api/member/profile' && req.method === 'POST') {
+    const m=memberSession(req);
+    if (!m) return bad(res,'Member login required',401);
+    if (!required(b.bio||' ',500) || !photoValid(b.photo)) return bad(res,'Invalid bio or photo');
+    m.profile ||= {};
+    m.profile.bio=String(b.bio||'').trim();
+    m.profile.photo=b.photo;
+    log('Member profile edited',m.name);
+    await save();
+    return send(res,200,{ok:true});
+  }
+  if (route === '/api/profile/public' && req.method === 'GET') {
+    const m=db.members.find(x=>x.id===url.searchParams.get('id'));
+    if (!m || m.profile?.visibility!=='public' || db.settings.siteMode!=='public') return bad(res,'Profile is private',403);
+    return send(res,200,{profile:safeProfile(m,false)});
+  }
+
   // VOTING
   if (route === '/api/vote' && req.method === 'POST') {
     if (db.settings.siteMode !== 'public') {
@@ -413,6 +478,61 @@ async function api(req, res, url) {
         hasCode: !!m.codeHash
       }))
     });
+  }
+
+  // ADMIN PROFILE RECORDS AND VISIBILITY
+  if (route === '/api/profile/admin' && req.method === 'POST') {
+    const m=db.members.find(x=>x.id===b.memberId);
+    if (!m) return bad(res,'Member not found');
+    m.profile ||= {};
+    if (b.action==='settings') {
+      if (!['public','private'].includes(b.visibility) || typeof b.title!=='string' || b.title.length>100) return bad(res,'Invalid profile settings');
+      m.profile.visibility=b.visibility; m.profile.title=b.title.trim();
+    } else if (b.action==='add-record') {
+      if (!['achievements','records'].includes(b.kind) || !required(b.title,120) || typeof b.description!=='string' || b.description.length>500) return bad(res,'Invalid record');
+      m.profile[b.kind] ||= [];
+      m.profile[b.kind].unshift({id:crypto.randomUUID(),title:b.title.trim(),description:b.description.trim(),public:!!b.public,at:new Date().toISOString()});
+    } else if (b.action==='delete-record') {
+      if (!['achievements','records'].includes(b.kind)) return bad(res,'Invalid record type');
+      m.profile[b.kind]=(m.profile[b.kind]||[]).filter(x=>x.id!==b.recordId);
+    } else return bad(res,'Invalid action');
+    log('Profile admin edit',m.name); await save(); return send(res,200,{ok:true});
+  }
+  // ADMIN TEAMS
+  if (route === '/api/team/admin' && req.method === 'POST') {
+    if (b.action==='create') {
+      if (!required(b.name,70) || db.teams.some(t=>t.name.toLowerCase()===b.name.trim().toLowerCase())) return bad(res,'Invalid or duplicate team name');
+      db.teams.push({id:crypto.randomUUID(),name:b.name.trim(),members:[],captainId:'',competitionPoints:0});
+    } else {
+      const t=db.teams.find(x=>x.id===b.teamId);
+      if (!t) return bad(res,'Team not found');
+      if (b.action==='assign') {
+        if (!db.members.some(m=>m.id===b.memberId)) return bad(res,'Member not found');
+        for (const other of db.teams) {other.members=(other.members||[]).filter(x=>x!==b.memberId);if(other.captainId===b.memberId)other.captainId='';}
+        t.members.push(b.memberId);
+      } else if (b.action==='remove') {
+        t.members=t.members.filter(x=>x!==b.memberId); if(t.captainId===b.memberId)t.captainId='';
+      } else if (b.action==='captain') {
+        if (b.memberId && !t.members.includes(b.memberId)) return bad(res,'Captain must belong to team');
+        t.captainId=b.memberId||'';
+      } else if (b.action==='points') {
+        if (!Number.isSafeInteger(b.points) || Math.abs(b.points)>10000000) return bad(res,'Invalid team points');
+        t.competitionPoints=b.points;
+      } else if (b.action==='delete') {
+        db.teams=db.teams.filter(x=>x.id!==t.id);
+      } else return bad(res,'Invalid team action');
+    }
+    log('Team management',b.action);await save();return send(res,200,{ok:true});
+  }
+  // ADMIN SPOTLIGHT
+  if (route === '/api/spotlight/admin' && req.method === 'POST') {
+    if (b.action==='remove') db.spotlight=db.spotlight.filter(x=>x.id!==b.id);
+    else if (b.action==='add') {
+      if (!db.members.some(m=>m.id===b.memberId) || !required(b.title,100) || typeof b.description!=='string' || b.description.length>300 || !['gold','purple','red','blue'].includes(b.theme)) return bad(res,'Invalid spotlight');
+      if (b.expires && (!/^\d{4}-\d{2}-\d{2}$/.test(b.expires) || !Number.isFinite(Date.parse(b.expires)))) return bad(res,'Invalid expiry');
+      db.spotlight.push({id:crypto.randomUUID(),memberId:b.memberId,title:b.title.trim(),description:b.description.trim(),theme:b.theme,expires:b.expires||'',order:db.spotlight.length});
+    } else return bad(res,'Invalid spotlight action');
+    log('Spotlight management',b.action);await save();return send(res,200,{ok:true});
   }
 
   // WEBSITE SETTINGS
