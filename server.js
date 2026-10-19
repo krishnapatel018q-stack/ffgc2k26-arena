@@ -624,7 +624,7 @@ async function api(req, res, url) {
       choices,
       selectCount,
       status: 'draft',
-      resultsVisible: !!b.resultsVisible,
+      resultsVisible: b.type === 'nomination' ? false : !!b.resultsVisible,
       votes: []
     };
 
