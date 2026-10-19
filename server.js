@@ -198,6 +198,30 @@ function ranked() {
     }));
 }
 
+function nominationSummary(p) {
+  const counts = p.choices.map(c =>
+    p.votes.filter(v => v.choices.includes(c)).length
+  );
+  const requested = Number.isInteger(p.autoNominationCount)
+    ? p.autoNominationCount : 3;
+  const limit = Math.min(Math.max(requested, 0), p.choices.length);
+  const sorted = [...counts].sort((a, b) => b - a);
+  // Zero votes do not nominate anyone automatically.
+  const cutoff = limit ? sorted[limit - 1] : 0;
+  const auto = p.choices.filter((c, i) => limit > 0 &&
+    counts[i] > 0 && counts[i] >= cutoff);
+  const manual = p.manualNominations || {};
+  const ids = [...new Set([...auto, ...Object.keys(manual)])]
+    .filter(id => p.choices.includes(id));
+  return { counts, nominated: ids.map(id => ({
+    id,
+    votes: counts[p.choices.indexOf(id)],
+    automatic: auto.includes(id),
+    manual: Object.prototype.hasOwnProperty.call(manual, id),
+    reason: String(manual[id] || '')
+  })).sort((a, b) => b.votes - a.votes) };
+}
+
 function publicData(admin) {
   const locked = db.settings.siteMode !== 'public' && !admin;
 
@@ -217,13 +241,13 @@ function publicData(admin) {
         choices: p.choices,
         selectCount: p.selectCount,
         resultsVisible: p.resultsVisible,
-        counts: (
-         p.resultsVisible === true
-        )
-          ? p.choices.map(c =>
-              p.votes.filter(v => v.choices.includes(c)).length
-            )
-          : null
+        counts: p.resultsVisible === true &&
+          (p.type !== 'nomination' || p.status === 'closed')
+          ? p.choices.map(c => p.votes.filter(v => v.choices.includes(c)).length)
+          : null,
+        nominationResults: p.type === 'nomination' &&
+          p.status === 'closed' && p.resultsVisible === true
+          ? nominationSummary(p).nominated : null
       })),
     admin
   };
@@ -625,7 +649,9 @@ async function api(req, res, url) {
       selectCount,
       status: 'draft',
       resultsVisible: b.type === 'nomination' ? false : !!b.resultsVisible,
-      votes: []
+      votes: [],
+      autoNominationCount: 3,
+      manualNominations: {}
     };
 
     db.polls.unshift(p);
@@ -633,6 +659,37 @@ async function api(req, res, url) {
     log('Poll created', p.title);
     await save();
 
+    return send(res, 200, { ok: true });
+  }
+
+  // GOD ADMIN: NOMINATION CONTROL (server-enforced)
+  if (route === '/api/nomination/control' && req.method === 'POST') {
+    const p = db.polls.find(x => x.id === b.id && x.type === 'nomination');
+    if (!p) return bad(res, 'Nomination poll not found');
+    if (p.status !== 'closed') {
+      return bad(res, 'Close the nomination poll before finalizing nominations');
+    }
+    if (b.action === 'count') {
+      if (!Number.isInteger(b.count) || b.count < 0 || b.count > p.choices.length) {
+        return bad(res, 'Invalid nomination count');
+      }
+      p.autoNominationCount = b.count;
+      log('Nomination count', `${p.title}: top ${b.count}`);
+    } else if (b.action === 'manual-add') {
+      if (!p.choices.includes(b.memberId) || !required(b.reason, 300)) {
+        return bad(res, 'Choose an eligible member and enter a reason (max 300 characters)');
+      }
+      p.manualNominations ||= {};
+      p.manualNominations[b.memberId] = b.reason.trim();
+      log('Manual nomination', `${p.title}: ${db.members.find(m => m.id === b.memberId)?.name}`);
+    } else if (b.action === 'manual-remove') {
+      p.manualNominations ||= {};
+      delete p.manualNominations[b.memberId];
+      log('Manual nomination removed', p.title);
+    } else {
+      return bad(res, 'Invalid nomination action');
+    }
+    await save();
     return send(res, 200, { ok: true });
   }
 
@@ -654,6 +711,10 @@ async function api(req, res, url) {
       return bad(res, 'Closed polls cannot be reopened');
     }
 
+    if (p.type === 'nomination' && b.resultsVisible === true &&
+        b.status !== 'closed') {
+      return bad(res, 'Close nominations before revealing results');
+    }
     p.status = b.status;
 
     if (typeof b.resultsVisible === 'boolean') {
