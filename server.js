@@ -218,7 +218,7 @@ function publicData(admin) {
         selectCount: p.selectCount,
         resultsVisible: p.resultsVisible,
         counts: (
-          p.status === 'closed' || p.resultsVisible
+         p.resultsVisible === true
         )
           ? p.choices.map(c =>
               p.votes.filter(v => v.choices.includes(c)).length
