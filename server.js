@@ -58,7 +58,7 @@ const initial = {
   announcements: [],
   polls: [],
   history: [],
-  teams: [], spotlight: []
+  teams: [], spotlight: [], supportMessages: []
 };
 
 let db = initial;
@@ -112,7 +112,7 @@ async function load() {
     await save();
   } else {
     db = value;
-    db.teams ||= []; db.spotlight ||= [];
+    db.teams ||= []; db.spotlight ||= []; db.supportMessages ||= [];
     for (const m of db.members) m.profile ||= {};
   }
 }
@@ -397,6 +397,36 @@ async function api(req, res, url) {
     const m=db.members.find(x=>x.id===url.searchParams.get('id'));
     if (!m || m.profile?.visibility!=='public' || db.settings.siteMode!=='public') return bad(res,'Profile is private',403);
     return send(res,200,{profile:safeProfile(m,false)});
+  }
+
+  // PRIVATE SUPPORT: server-enforced per-message 24-hour retention.
+  if (route.startsWith('/api/support/')) {
+    const member = memberSession(req);
+    if (!admin && !member) return bad(res,'Login required',401);
+    const now=Date.now(), ttl=86400000;
+    db.supportMessages ||= [];
+    const active=()=>db.supportMessages.filter(x=>now-new Date(x.at).getTime()<ttl);
+    if (route==='/api/support/messages' && req.method==='GET') {
+      const memberId=admin?url.searchParams.get('memberId'):member.id;
+      if (!memberId || (admin&&!db.members.some(x=>x.id===memberId))) return bad(res,'Select member');
+      return send(res,200,{messages:active().filter(x=>x.memberId===memberId).map(x=>({id:x.id,from:x.from,text:x.text,at:x.at}))});
+    }
+    if (route==='/api/support/inbox' && req.method==='GET') {
+      if (!admin) return bad(res,'Admin only',403);
+      return send(res,200,{inbox:db.members.map(m=>({id:m.id,name:m.name,messages:active().filter(x=>x.memberId===m.id).length,last:active().filter(x=>x.memberId===m.id).at(-1)?.at||null})).filter(x=>x.messages).sort((a,b)=>new Date(b.last)-new Date(a.last))});
+    }
+    if (route==='/api/support/send' && req.method==='POST') {
+      if (typeof b.text!=='string'||!b.text.trim()||b.text.length>1500) return bad(res,'Message must be 1–1500 characters');
+      const memberId=admin?b.memberId:member.id;
+      if (!db.members.some(x=>x.id===memberId)) return bad(res,'Invalid member');
+      const old=active(); const first=!admin&&!old.some(x=>x.memberId===memberId&&x.from==='member');
+      db.supportMessages=old;
+      db.supportMessages.push({id:crypto.randomUUID(),memberId,from:admin?'support':'member',text:b.text.trim(),at:new Date(now).toISOString()});
+      if (first) db.supportMessages.push({id:crypto.randomUUID(),memberId,from:'support',text:'🛡️ Welcome to FFGC2K26 SUPPORT! Your message has been received. Our support team will reply when available. Each message expires 24 hours after being sent.',at:new Date(now).toISOString(),automated:true});
+      await save();
+      return send(res,200,{ok:true});
+    }
+    return bad(res,'Unknown support request',404);
   }
 
   // VOTING
