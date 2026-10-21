@@ -869,6 +869,47 @@ async function api(req, res, url) {
     return send(res, 200, { ok: true });
   }
 
+  // ADMIN: EDIT POLL (preserve existing ballots and poll state)
+  if (route === '/api/poll/edit' && req.method === 'POST') {
+    const p = db.polls.find(x => x.id === b.id);
+    if (!p) return bad(res, 'Poll not found', 404);
+    if (!required(b.title, 150)) return bad(res, 'Enter a valid poll title');
+    const selectCount = Number(b.selectCount);
+    if (!Number.isInteger(selectCount) || selectCount < 1 || selectCount > p.choices.length) {
+      return bad(res, 'Invalid number of selections');
+    }
+    // Never change ballot structure after voting starts: existing votes remain valid.
+    if (selectCount !== p.selectCount && (p.votes.length || p.status !== 'draft')) {
+      return bad(res, 'Selections can only change on an unused draft poll');
+    }
+    if (p.type === 'normal' && b.choices !== undefined) {
+      const choices = Array.isArray(b.choices) ? b.choices.map(x => String(x).trim()).filter(Boolean) : [];
+      if (choices.length < 2 || choices.length > 100 || new Set(choices).size !== choices.length) {
+        return bad(res, 'Provide 2–100 unique options');
+      }
+      if (JSON.stringify(choices) !== JSON.stringify(p.choices)) {
+        if (p.votes.length || p.status !== 'draft') return bad(res, 'Options can only change on an unused draft poll');
+        if (selectCount > choices.length) return bad(res, 'Too many selections for options');
+        p.choices = choices;
+      }
+    }
+    p.title = b.title.trim();
+    p.selectCount = selectCount;
+    log('Poll edited', p.title);
+    await save();
+    return send(res, 200, { ok: true });
+  }
+
+  // ADMIN: DELETE POLL (explicit confirmation in UI)
+  if (route === '/api/poll/delete' && req.method === 'POST') {
+    const index = db.polls.findIndex(x => x.id === b.id);
+    if (index < 0) return bad(res, 'Poll not found', 404);
+    const [removed] = db.polls.splice(index, 1);
+    log('Poll deleted', `${removed.title} (${removed.votes.length} ballots)`);
+    await save();
+    return send(res, 200, { ok: true });
+  }
+
   // GOD ADMIN: NOMINATION CONTROL (server-enforced)
   if (route === '/api/nomination/control' && req.method === 'POST') {
     const p = db.polls.find(x => x.id === b.id && x.type === 'nomination');
