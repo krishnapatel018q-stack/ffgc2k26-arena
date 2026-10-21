@@ -1,0 +1,11 @@
+/* Arena 4 visual enhancement; existing functional layouts remain intact. */
+:root{--arena-accent:#aa82ff;--arena-cyan:#54d9ff}
+html{scroll-behavior:smooth}body{background:radial-gradient(ellipse at 75% 0%,#221143 0%,transparent 45%),radial-gradient(ellipse at 0% 40%,#09213c 0%,transparent 48%),#080912;background-attachment:fixed}
+.hero{position:relative;isolation:isolate}.hero:before{content:"";position:absolute;inset:-1rem;z-index:-1;background:radial-gradient(circle at 70% 35%,#7845ed33,transparent 55%);pointer-events:none;animation:arenaGlow 8s ease-in-out infinite alternate}
+.panel{border:1px solid #9c72ff28;box-shadow:0 18px 48px #0005;transition:border-color .25s,transform .25s}.panel:hover{border-color:#9c72ff55}
+.auctionCard,.auctionSuggestion{background:linear-gradient(145deg,#1a1a32,#101321);border:1px solid #9c72ff50;border-radius:16px;padding:18px;margin:12px 0;box-shadow:0 12px 30px #0004}.auctionCard:hover{border-color:var(--arena-cyan)}
+.auctionCard h3{color:#e4d6ff}.auctionCard ul{padding-left:18px}.auctionCard form{display:flex;gap:8px;flex-wrap:wrap}.auctionCard input{min-width:100px;flex:1}
+.auctionSuggestions{margin-top:22px;border-top:1px solid #9c72ff44;padding-top:14px}.auctionSuggestion p{opacity:.8}
+@keyframes arenaGlow{from{opacity:.4;transform:scale(.98)}to{opacity:1;transform:scale(1.03)}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.hero:before{animation:none}.panel{transition:none}}
+@media(max-width:640px){.auctionCard,.auctionSuggestion{padding:14px}}
