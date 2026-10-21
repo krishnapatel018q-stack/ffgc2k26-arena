@@ -230,20 +230,24 @@ function nominationSummary(p) {
   const counts = p.choices.map(c =>
     p.votes.filter(v => v.choices.includes(c)).length
   );
+  const officialScores = p.officialScores || {};
+  const resultCounts = p.choices.map((id, i) =>
+    Number.isInteger(officialScores[id]) ? officialScores[id] : counts[i]);
   const requested = Number.isInteger(p.autoNominationCount)
     ? p.autoNominationCount : 3;
   const limit = Math.min(Math.max(requested, 0), p.choices.length);
-  const sorted = [...counts].sort((a, b) => b - a);
+  const sorted = [...resultCounts].sort((a, b) => b - a);
   // Zero votes do not nominate anyone automatically.
   const cutoff = limit ? sorted[limit - 1] : 0;
   const auto = p.choices.filter((c, i) => limit > 0 &&
-    counts[i] > 0 && counts[i] >= cutoff);
+    resultCounts[i] > 0 && resultCounts[i] >= cutoff);
   const manual = p.manualNominations || {};
   const ids = [...new Set([...auto, ...Object.keys(manual)])]
     .filter(id => p.choices.includes(id));
-  return { counts, nominated: ids.map(id => ({
+  return { counts, resultCounts, nominated: ids.map(id => ({
     id,
-    votes: counts[p.choices.indexOf(id)],
+    votes: resultCounts[p.choices.indexOf(id)],
+    scoreAdjusted: Object.prototype.hasOwnProperty.call(officialScores, id),
     automatic: auto.includes(id),
     manual: Object.prototype.hasOwnProperty.call(manual, id),
     reason: String(manual[id] || '')
@@ -271,7 +275,7 @@ function publicData(admin) {
         resultsVisible: p.resultsVisible,
         counts: p.resultsVisible === true &&
           (p.type !== 'nomination' || p.status === 'closed')
-          ? p.choices.map(c => p.votes.filter(v => v.choices.includes(c)).length)
+          ? (p.type === 'nomination' ? nominationSummary(p).resultCounts : p.choices.map(c => p.votes.filter(v => v.choices.includes(c)).length))
           : null,
         nominationResults: p.type === 'nomination' &&
           p.status === 'closed' && p.resultsVisible === true
@@ -917,7 +921,19 @@ async function api(req, res, url) {
     if (p.status !== 'closed') {
       return bad(res, 'Close the nomination poll before finalizing nominations');
     }
-    if (b.action === 'count') {
+    if (b.action === 'score') {
+      if (!p.choices.includes(b.memberId) || !Number.isSafeInteger(b.score) || b.score < 0 || b.score > 1000000) {
+        return bad(res, 'Choose a valid member and score (0–1000000)');
+      }
+      p.officialScores ||= {};
+      p.officialScores[b.memberId] = b.score;
+      log('Official nomination score set', `${p.title}: ${b.memberId} = ${b.score}`);
+    } else if (b.action === 'score-reset') {
+      if (!p.choices.includes(b.memberId)) return bad(res, 'Invalid member');
+      p.officialScores ||= {};
+      delete p.officialScores[b.memberId];
+      log('Official nomination score reset', `${p.title}: ${b.memberId}`);
+    } else if (b.action === 'count') {
       if (!Number.isInteger(b.count) || b.count < 0 || b.count > p.choices.length) {
         return bad(res, 'Invalid nomination count');
       }
