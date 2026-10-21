@@ -112,7 +112,7 @@ async function load() {
     await save();
   } else {
     db = value;
-    db.teams ||= []; db.spotlight ||= []; db.supportMessages ||= [];
+    db.teams ||= []; db.spotlight ||= []; db.supportMessages ||= []; db.auctionHouse ||= {cycleStart:Date.now(), auctions:[], inventory:[], enabled:true};
     for (const m of db.members) m.profile ||= {};
   }
 }
@@ -329,6 +329,49 @@ async function api(req, res, url) {
 
   const route = url.pathname;
   const admin = isAdmin(req);
+  if (route.startsWith('/api/auction/')) {
+    db.auctionHouse ||= {cycleStart:Date.now(), auctions:[], inventory:[], enabled:true};
+    const house=db.auctionHouse, now=Date.now(), member=memberSession(req);
+    const cycleMs=10*24*60*60*1000;
+    const cycle=Math.max(0,Math.floor((now-house.cycleStart)/cycleMs));
+    const bidsOf=(a)=>a.bids||[];
+    const owned=(id)=>house.inventory.filter(x=>x.memberId===id);
+    const spent=(id)=>house.auctions.filter(a=>a.cycle===cycle&&a.closed&&a.winnerId===id).reduce((n,a)=>n+a.winningBid,0);
+    const locked=(id)=>house.auctions.filter(a=>a.cycle===cycle&&!a.closed&&a.endAt>now).reduce((n,a)=>{const top=bidsOf(a).at(-1);return n+(top?.memberId===id?top.amount:0)},0);
+    const balance=(id)=>Math.max(0,1000-spent(id)-locked(id));
+    const settle=()=>{let changed=false;for(const a of house.auctions){if(!a.closed&&a.endAt<=now){a.closed=true;const win=bidsOf(a).at(-1);if(win){a.winnerId=win.memberId;a.winningBid=win.amount;house.inventory.push({id:crypto.randomUUID(),memberId:win.memberId,auctionId:a.id,title:a.title,description:a.description,wonAt:new Date().toISOString(),expiresAt:new Date(now+30*86400000).toISOString(),used:false});}changed=true;}}return changed;};
+    if(settle()) await save();
+    if(route==='/api/auction/state'&&req.method==='GET') return send(res,200,{enabled:house.enabled,cycle,cycleEndsAt:new Date(house.cycleStart+(cycle+1)*cycleMs).toISOString(),wallet:member?{memberId:member.id,balance:balance(member.id),locked:locked(member.id),spent:spent(member.id)}:null,inventory:member?owned(member.id):[],auctions:house.auctions.map(a=>({id:a.id,title:a.title,description:a.description,rarity:a.rarity,startAt:a.startAt,endAt:a.endAt,startingBid:a.startingBid,minIncrement:a.minIncrement,cycle:a.cycle,closed:a.closed,winnerId:a.closed?a.winnerId:null,winningBid:a.closed?a.winningBid:null,highestBid:bidsOf(a).at(-1)?.amount||0,bids:bidsOf(a).map(x=>({memberName:db.members.find(m=>m.id===x.memberId)?.name||'Member',amount:x.amount,at:x.at}))}))});
+    if(route==='/api/auction/bid'&&req.method==='POST'){
+      if(!member)return bad(res,'Member login required',401);
+      if(!house.enabled)return bad(res,'Auction House disabled',403);
+      const a=house.auctions.find(x=>x.id===b.id);if(!a||a.closed||a.cycle!==cycle||now<a.startAt||now>=a.endAt)return bad(res,'Auction is not active');
+      const top=bidsOf(a).at(-1), amount=Number(b.amount), min=top?top.amount+a.minIncrement:a.startingBid;
+      if(!Number.isSafeInteger(amount)||amount<min||amount>1000)return bad(res,'Invalid bid amount');
+      if(top?.memberId===member.id)return bad(res,'You already have the highest bid');
+      if(amount>balance(member.id))return bad(res,'Insufficient available coins');
+      a.bids.push({memberId:member.id,amount,at:new Date(now).toISOString()});
+      if(a.endAt-now<=120000)a.endAt=now+120000;
+      await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/auction/admin'&&req.method==='POST'){
+      if(!admin)return bad(res,'Admin only',403);
+      if(b.action==='create'){
+        const title=String(b.title||'').trim(),description=String(b.description||'').trim(),startAt=Date.parse(b.startAt),endAt=Date.parse(b.endAt),startingBid=Number(b.startingBid),minIncrement=Number(b.minIncrement||10);
+        if(!title||title.length>100||description.length>500||!Number.isFinite(startAt)||!Number.isFinite(endAt)||endAt<=startAt||endAt<=now||!Number.isSafeInteger(startingBid)||startingBid<1||startingBid>1000||!Number.isSafeInteger(minIncrement)||minIncrement<1||minIncrement>1000)return bad(res,'Invalid auction details');
+        if(house.auctions.filter(x=>x.cycle===cycle).length>=5)return bad(res,'Maximum 5 auctions per cycle');
+        house.auctions.push({id:crypto.randomUUID(),title,description,rarity:['common','rare','epic','legendary'].includes(b.rarity)?b.rarity:'rare',startAt,endAt,startingBid,minIncrement,cycle,bids:[],closed:false});
+      }else if(b.action==='delete'){
+        const a=house.auctions.find(x=>x.id===b.id);if(!a||a.bids.length||a.closed)return bad(res,'Only auctions without bids can be deleted');house.auctions=house.auctions.filter(x=>x.id!==b.id);
+      }else if(b.action==='enabled'){house.enabled=Boolean(b.enabled);
+      }else if(b.action==='useReward'){
+        const item=house.inventory.find(x=>x.id===b.id);if(!item||item.used)return bad(res,'Invalid reward');item.used=true;item.usedAt=new Date().toISOString();
+      }else return bad(res,'Unknown action');
+      await save();return send(res,200,{ok:true});
+    }
+    return bad(res,'Not found',404);
+  }
+
 
   // ADMIN LOGIN
   if (route === '/api/login' && req.method === 'POST') {
@@ -916,7 +959,7 @@ const server = http.createServer((req, res) => {
     ? 'index.html'
     : u.pathname.slice(1);
 
-  if (!['index.html', 'app.js', 'style.css'].includes(file)) {
+  if (!['index.html', 'app.js', 'style.css', 'auction.js', 'auction.css'].includes(file)) {
     return bad(res, 'Not found', 404);
   }
 
