@@ -262,7 +262,7 @@ function publicData(admin) {
     locked,
     leaderboard: locked ? [] : ranked(),
     tasks: locked ? [] : db.tasks,
-    announcements: locked ? [] : db.announcements,
+    announcements: locked ? [] : (db.announcements || []).filter(a => !a.hidden).sort((a,b) => Number(!!b.pinned)-Number(!!a.pinned)),
     polls: locked ? [] : db.polls
       .filter(p => p.status !== 'draft')
       .map(p => ({
@@ -901,9 +901,9 @@ async function api(req, res, url) {
   ) {
     if (
       !required(b.title, 120) ||
-      !required(b.body, 2000)
+      !required(b.body, 20000)
     ) {
-      return bad(res, 'Enter title and message');
+      return bad(res, 'Headline is required (max 120 characters); announcement must be 1–20,000 characters.');
     }
 
     db.announcements.unshift({
@@ -917,6 +917,30 @@ async function api(req, res, url) {
     await save();
 
     return send(res, 200, { ok: true });
+  }
+
+  // ANNOUNCEMENT MANAGEMENT — admin only, preserves existing records.
+  if (route === '/api/announcement/manage' && req.method === 'POST') {
+    const list = db.announcements || (db.announcements = []);
+    const index = list.findIndex(a => a.id === b.id);
+    if (index < 0) return bad(res, 'Announcement not found', 404);
+    const a = list[index];
+    if (b.action === 'delete') {
+      list.splice(index, 1);
+      log('Announcement deleted', a.title);
+    } else if (b.action === 'edit') {
+      if (!required(b.title, 120) || !required(b.body, 20000))
+        return bad(res, 'Headline required (max 120); message must be 1–20,000 characters');
+      a.title = b.title.trim(); a.body = b.body.trim();
+      a.updatedAt = new Date().toISOString();
+      log('Announcement edited', a.title);
+    } else if (b.action === 'pin' || b.action === 'hide') {
+      if (b.action === 'pin') a.pinned = !!b.value;
+      else a.hidden = !!b.value;
+      log('Announcement '+b.action, a.title);
+    } else return bad(res, 'Unknown announcement action');
+    await save();
+    return send(res, 200, {ok:true});
   }
 
   // CREATE POLL
