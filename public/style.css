@@ -11,3 +11,8 @@
 .supportBubble small{display:block;color:#b8b7cc;font-size:11px;margin-bottom:6px}
 .supportFromMember{align-self:flex-end;background:#3c2a73}.supportFromAdmin{align-self:flex-start;border:1px solid #6153a0}
 .supportInboxItem{display:block;margin:8px 0;width:100%;text-align:left}
+
+/* Keep line breaks and long announcement content readable */
+#newsCards .card p {white-space:pre-wrap;overflow-wrap:anywhere;}
+#adminAnnouncements .adminRow {gap:12px;flex-wrap:wrap;}
+#adminAnnouncements .adminRow > div {min-width:0;overflow-wrap:anywhere;}
