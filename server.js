@@ -112,7 +112,7 @@ async function load() {
     await save();
   } else {
     db = value;
-    db.teams ||= []; db.spotlight ||= []; db.supportMessages ||= []; db.auctionHouse ||= {cycleStart:Date.now(), auctions:[], inventory:[], enabled:true};
+    db.chamber ||= {sessions:[],activeId:null}; db.teams ||= []; db.spotlight ||= []; db.supportMessages ||= []; db.auctionHouse ||= {cycleStart:Date.now(), auctions:[], inventory:[], enabled:true};
     for (const m of db.members) m.profile ||= {};
   }
 }
@@ -309,6 +309,42 @@ function log(action, detail) {
   db.history = db.history.slice(0, 500);
 }
 
+
+// Decision Chamber: server-authoritative timers and nomination records.
+function chamberStore(){db.chamber ||= {sessions:[],activeId:null};return db.chamber;}
+function chamberActive(){const c=chamberStore();return c.sessions.find(s=>s.id===c.activeId)||null;}
+function chamberName(id){return db.members.find(m=>m.id===id)?.name||'Member';}
+function chamberNominate(s,ids,reason){
+  s.nominated=[...new Set(ids)];s.reason=reason;s.status='complete';s.completedAt=Date.now();
+  s.selections={};
+  const p=db.polls.find(p=>p.id===s.pollId&&p.type==='nomination');
+  if(p){p.manualNominations ||= {};for(const id of s.nominated){if(!p.choices.includes(id))p.choices.push(id);p.manualNominations[id]='Decision Chamber: '+reason;}}
+  log('Chamber nomination',s.nominated.map(chamberName).join(', ')+' — '+reason);
+}
+function chamberTick(s){
+  if(!s||s.status==='complete'||s.status==='cancelled')return false;
+  const now=Date.now();
+  if(s.status==='discussion'){for(const id of s.members){if(s.online[id]&&s.lastSeen?.[id]&&now-s.lastSeen[id]>15000){s.online[id]=false;delete s.selections[id];}}}
+  if(s.status==='scheduled'&&now>=s.entryDeadline){
+    const absent=s.members.filter(id=>!s.joined[id]);
+    if(absent.length){chamberNominate(s,absent,'Missed scheduled reporting deadline');return true;}
+    s.status='discussion';s.decisionEndsAt=now+300000;return true;
+  }
+  if(s.status==='discussion'&&now>=s.decisionEndsAt){
+    const missing=s.members.filter(id=>!s.online[id]);
+    chamberNominate(s,missing.length?missing:s.members,missing.length?'Did not return before countdown':'No mutual decision');return true;
+  }
+  return false;
+}
+function chamberView(s,admin,member){
+  if(!s)return null;
+  const eligible=!!member&&s.members.includes(member.id);
+  const base={id:s.id,status:s.status,members:s.members.map(id=>({id,name:chamberName(id),joined:!!s.joined[id],online:!!s.online[id]})),reportAt:s.reportAt,entryDeadline:s.entryDeadline,decisionEndsAt:s.decisionEndsAt||null,completedAt:s.completedAt||null,revealed:!!s.revealed};
+  if(admin||eligible){base.messages=s.messages;base.selections=admin?s.selections:{mine:s.selections[member.id]||null};base.nominated=s.status==='complete'&&(admin||s.revealed)?s.nominated:[];base.reason=admin||s.revealed?s.reason:null;}
+  if(s.revealed){base.nominated=s.nominated;base.reason=s.reason;}
+  return base;
+}
+
 async function api(req, res, url) {
   let b = {};
 
@@ -333,6 +369,72 @@ async function api(req, res, url) {
 
   const route = url.pathname;
   const admin = isAdmin(req);
+
+  // DECISION CHAMBER — member/admin authentication is enforced on every route.
+  if(route.startsWith('/api/chamber/')){
+    const c=chamberStore(),member=memberSession(req),s=chamberActive();
+    if(s&&chamberTick(s))await save();
+    if(route==='/api/chamber/state'&&req.method==='GET'){
+      const history=admin?c.sessions.slice(-30).reverse().map(x=>chamberView(x,true,null)):[];
+      return send(res,200,{active:chamberView(s,admin,member),history,admin,memberId:member?.id||null,polls:admin?db.polls.filter(p=>p.type==='nomination').map(p=>({id:p.id,title:p.title,status:p.status})):undefined,members:admin?db.members.map(m=>({id:m.id,name:m.name})):undefined});
+    }
+    if(!admin&&!member)return bad(res,'Member login required',401);
+    if(route==='/api/chamber/admin'&&req.method==='POST'){
+      if(!admin)return bad(res,'Admin required',403);
+      if(b.action==='schedule'){
+        if(s&&['scheduled','discussion'].includes(s.status))return bad(res,'Finish or cancel current session first');
+        const members=Array.isArray(b.members)?b.members:[];
+        if(members.length!==2||members[0]===members[1]||members.some(id=>!db.members.some(m=>m.id===id)))return bad(res,'Select two distinct members');
+        const poll=db.polls.find(p=>p.id===b.pollId&&p.type==='nomination'&&p.status==='draft');
+        if(!poll)return bad(res,'Select a draft nomination poll (before voting begins)');
+        const reportAt=Date.parse(b.reportAt);
+        if(!Number.isFinite(reportAt)||reportAt<Date.now()-60000||reportAt>Date.now()+90*86400000)return bad(res,'Choose a valid future reporting time');
+        const x={id:crypto.randomUUID(),members,pollId:poll.id,reportAt,entryDeadline:reportAt+120000,decisionEndsAt:null,status:'scheduled',joined:{},online:{},selections:{},messages:[],nominated:[],revealed:false,reason:null,createdAt:Date.now()};
+        c.sessions.push(x);c.sessions=c.sessions.slice(-100);c.activeId=x.id;log('Chamber scheduled',members.map(chamberName).join(' vs '));await save();return send(res,200,{ok:true});
+      }
+      if(!s)return bad(res,'No active session');
+      if(b.action==='cancel'){if(s.status==='complete')return bad(res,'Completed results cannot be cancelled');s.status='cancelled';log('Chamber cancelled',s.id);}
+      else if(b.action==='close'){if(s.status!=='complete'&&s.status!=='cancelled')return bad(res,'Finish or cancel session first');c.activeId=null;}
+      else if(b.action==='reveal'){if(s.status!=='complete')return bad(res,'Result not ready');s.revealed=true;log('Chamber result revealed',s.id);}
+      else if(b.action==='reveal-all'){for(const x of c.sessions)if(x.status==='complete')x.revealed=true;log('Chamber grand reveal','All completed results');}
+      else return bad(res,'Unknown action');
+      await save();return send(res,200,{ok:true});
+    }
+    if(!s||!member||!s.members.includes(member.id))return bad(res,'Chamber access restricted',403);
+    if(route==='/api/chamber/join'&&req.method==='POST'){
+      if(s.status!=='scheduled'&&s.status!=='discussion')return bad(res,'Session not open');
+      if(Date.now()<s.reportAt)return bad(res,'Please wait until your scheduled reporting time');
+      if(s.status==='scheduled'&&Date.now()>s.entryDeadline)return bad(res,'Entry deadline passed');
+      s.joined[member.id]=true;s.online[member.id]=true;s.lastSeen ||= {};s.lastSeen[member.id]=Date.now();
+      if(s.status==='scheduled'&&s.members.every(id=>s.joined[id])){s.status='discussion';s.decisionEndsAt=Date.now()+300000;}
+      await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/chamber/heartbeat'&&req.method==='POST'){
+      if(!s.joined[member.id]||s.status!=='discussion')return bad(res,'Not in discussion');
+      // A deliberate exit remains offline until explicit rejoin.
+      if(!s.online[member.id])return bad(res,'Rejoin to resume');
+      s.lastSeen ||= {};s.lastSeen[member.id]=Date.now();return send(res,200,{ok:true});
+    }
+    if(route==='/api/chamber/exit'&&req.method==='POST'){
+      if(s.status!=='discussion')return bad(res,'No active discussion');s.online[member.id]=false;delete s.selections[member.id];await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/chamber/rejoin'&&req.method==='POST'){
+      if(s.status!=='discussion'||!s.joined[member.id]||Date.now()>=s.decisionEndsAt)return bad(res,'Rejoin window closed');s.online[member.id]=true;s.lastSeen ||= {};s.lastSeen[member.id]=Date.now();await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/chamber/message'&&req.method==='POST'){
+      if(s.status!=='discussion'||!s.online[member.id]||!required(b.text,500))return bad(res,'Cannot send message');
+      if(s.messages.length>=200)return bad(res,'Chat limit reached');
+      s.messages.push({id:crypto.randomUUID(),memberId:member.id,name:member.name,text:b.text.trim(),at:Date.now()});await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/chamber/select'&&req.method==='POST'){
+      if(s.status!=='discussion'||!s.online[member.id]||!s.members.includes(b.nomineeId))return bad(res,'Invalid nomination choice');
+      s.selections[member.id]=b.nomineeId;
+      if(s.members.every(id=>s.selections[id]===b.nomineeId))chamberNominate(s,[b.nomineeId],'Mutual agreement');
+      await save();return send(res,200,{ok:true});
+    }
+    return bad(res,'Not found',404);
+  }
+
   if (route.startsWith('/api/auction/')) {
     db.auctionHouse ||= {cycleStart:Date.now(), auctions:[], inventory:[], enabled:true};
     const house=db.auctionHouse, now=Date.now(), member=memberSession(req);
@@ -1030,7 +1132,7 @@ const server = http.createServer((req, res) => {
     ? 'index.html'
     : u.pathname.slice(1);
 
-  if (!['index.html', 'app.js', 'style.css', 'auction.js', 'auction.css', 'arena4.css'].includes(file)) {
+  if (!['index.html', 'app.js', 'style.css', 'auction.js', 'auction.css', 'arena4.css', 'chamber.js', 'chamber.css'].includes(file)) {
     return bad(res, 'Not found', 404);
   }
 
