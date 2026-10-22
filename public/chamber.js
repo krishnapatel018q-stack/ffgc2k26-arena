@@ -1,0 +1,45 @@
+(()=>{
+const q=id=>document.getElementById(id),escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let data=null,admin=false,memberId=null,lastChat='';
+async function request(path,body){const r=await fetch('/api/chamber/'+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:body?JSON.stringify(body):undefined});const x=await r.json();if(!r.ok)throw Error(x.error||'Request failed');return x;}
+function alertError(e){window.alert(e.message)}
+function timer(ts){if(!ts)return '--:--';let sec=Math.max(0,Math.ceil((ts-Date.now())/1000));return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')}
+function memberLabel(s,id){return s.members.find(m=>m.id===id)?.name||'Member'}
+async function action(path,body){try{await request(path,body);await refresh()}catch(e){alertError(e)}}
+function render(){if(!data)return;const focus=document.activeElement;const focusName=focus?.name||'';const focusId=focus?.id||'';const focusValue=focus?.value||'';const hadFocus=focus&&(focus.tagName==='INPUT'||focus.tagName==='SELECT'||focus.tagName==='TEXTAREA');const s=data.active,box=q('chamberPublic'),privateBox=q('chamberPrivate'),adminBox=q('chamberAdmin');if(!box)return;
+ if(!s){box.innerHTML='<p class="muted">Chamber is currently closed. Wait for an official invitation.</p>';privateBox.innerHTML='';}
+ else{
+ const names=s.members.map(m=>escape(m.name)).join(' ⚔️ '),deadline=s.status==='scheduled'?s.entryDeadline:s.decisionEndsAt;
+ box.innerHTML=`<div class="chamberHero"><div class="chamberLive">${s.status==='discussion'?'🔴 LIVE DECISION':s.status==='scheduled'?'🟡 SCHEDULED':s.status==='complete'?'🔒 RESULT LOCKED':'CHAMBER CLOSED'}</div><h3>${names}</h3><div class="chamberClock">${s.status==='scheduled'?timer(deadline):s.status==='discussion'?timer(deadline):'00:00'}</div><p>${s.status==='scheduled'?'Reporting: '+new Date(s.reportAt).toLocaleString()+' • Entry closes 2 minutes later':s.status==='discussion'?'Private discussion in progress':s.status==='complete'?(s.revealed?'OFFICIAL RESULT REVEALED':'Result locked — awaiting God Admin reveal'):'Session cancelled'}</p>${s.revealed&&s.status==='complete'?`<strong>🔴 NOMINATED: ${s.nominated.map(id=>escape(memberLabel(s,id))).join(', ')}</strong>`:''}</div>`;
+ const invited=!!memberId&&s.members.some(m=>m.id===memberId),mine=s.members.find(m=>m.id===memberId);
+ if(invited){let body='';if(s.status==='scheduled'&&!mine.joined)body=`<button data-chamber="join">🚪 Enter Chamber</button>`;
+ if(s.status==='discussion'){
+  if(!mine.online)body='<button data-chamber="rejoin">↩️ Rejoin Chamber</button>';
+  else{const selected=s.selections?.mine||null;body=`<div class="chamberChat" id="chamberChat">${(s.messages||[]).map(m=>`<p><b>${escape(m.name)}:</b> ${escape(m.text)}</p>`).join('')}</div><form id="chamberMessageForm"><input name="text" maxlength="500" required placeholder="Write a message..."><button>Send</button></form><h4>Who should be nominated?</h4><div class="chamberChoices">${s.members.map(m=>`<button data-chamber="select" data-id="${escape(m.id)}" class="${selected===m.id?'chosen':''}">${escape(m.name)}</button>`).join('')}</div><p class="muted">You can change your choice until both match. Same choice locks the result immediately.</p><button data-chamber="exit" class="ghost">🚪 Exit Chamber</button>`;}
+ }
+ privateBox.innerHTML=`<div class="chamberPrivate"><h3>🔐 Your Chamber Access</h3>${body||'<p class="muted">Waiting for the session.</p>'}</div>`;
+ const f=q('chamberMessageForm');if(f)f.onsubmit=e=>{e.preventDefault();let v=f.elements.text.value;action('message',{text:v})};
+ }else privateBox.innerHTML='';
+ }
+ if(admin&&adminBox){let members=data.members||[],polls=(data.polls||[]).filter(p=>p.status==='draft');const opts=members.map(m=>`<option value="${escape(m.id)}">${escape(m.name)}</option>`).join('');
+ let content=`<p class="muted">Schedule two members and select a DRAFT nomination poll. Voting must not have started.</p>`;
+ if(!s||['complete','cancelled'].includes(s.status))content+=`<form id="chamberSchedule" class="form"><label>First member<select name="first" required>${opts}</select></label><label>Second member<select name="second" required>${opts}</select></label><label>Reporting date and time<input name="reportAt" type="datetime-local" required></label><label>Draft nomination poll<select name="pollId" required>${polls.map(p=>`<option value="${escape(p.id)}">${escape(p.title)}</option>`).join('')}</select></label><button ${polls.length?'':'disabled'}>Schedule Chamber</button></form>`;
+ if(s){content+=`<p><strong>${s.members.map(m=>escape(m.name)).join(' vs ')}</strong> • ${escape(s.status)}</p><p>Online: ${s.members.map(m=>escape(m.name)+(m.online?' 🟢':' 🔴')).join(' | ')}</p>`;
+ if(['scheduled','discussion'].includes(s.status))content+='<button data-chamber="cancel">Cancel Session</button>';
+ if(['complete','cancelled'].includes(s.status))content+='<button data-chamber="close">Close & Prepare Next Pair</button>';
+ if(s.status==='complete'&&!s.revealed)content+='<button data-chamber="reveal">🎬 Reveal This Result</button>';
+ if(s.status==='complete')content+=`<p><b>Admin-only nomination:</b> ${s.nominated.map(id=>escape(memberLabel(s,id))).join(', ')} (${escape(s.reason)})</p>`;
+ if(s.messages?.length)content+=`<h4>👁️ Live Chat / Session Log</h4><div class="chamberChat">${s.messages.map(m=>`<p><b>${escape(m.name)}</b>: ${escape(m.text)} <small>${new Date(m.at).toLocaleTimeString()}</small></p>`).join('')}</div>`;
+ content+=`<p class="muted">Member selections: ${s.members.map(m=>escape(m.name)+' → '+escape(memberLabel(s,s.selections?.[m.id]||''))).join(' | ')}</p>`;
+ }
+ content+='<button data-chamber="reveal-all">🎬 Grand Reveal All Completed Results</button>';
+ content+=`<h4>Session History</h4>${(data.history||[]).map(x=>`<div class="chamberHistory">${x.members.map(m=>escape(m.name)).join(' vs ')} — ${escape(x.status)} ${x.status==='complete'?`• ${x.nominated.map(id=>escape(memberLabel(x,id))).join(', ')} ${x.revealed?'(revealed)':'(hidden)'}`:''}</div>`).join('')}`;
+ const oldForm=q('chamberSchedule');const prev=oldForm?Object.fromEntries([...oldForm.elements].filter(x=>x.name).map(x=>[x.name,x.value])):null;adminBox.innerHTML=content;
+ const form=q('chamberSchedule');if(form){if(members[1])form.elements.second.value=members[1].id;if(prev)for(const [key,val] of Object.entries(prev)){if(form.elements[key])form.elements[key].value=val;}form.onsubmit=e=>{e.preventDefault();const f=form.elements;if(f.first.value===f.second.value)return alert('Select different members');action('admin',{action:'schedule',members:[f.first.value,f.second.value],reportAt:new Date(f.reportAt.value).toISOString(),pollId:f.pollId.value})}}
+ }
+ if(hadFocus){let restored=(focusId&&q(focusId))||(focusName&&[...document.querySelectorAll('[name]')].find(el=>el.name===focusName));if(restored){if(restored.tagName!=='SELECT')restored.value=focusValue;restored.focus();}}
+}
+async function refresh(){try{data=await request('state');admin=data.admin;memberId=data.memberId;render()}catch(e){console.error('Chamber:',e.message)}}
+document.addEventListener('click',e=>{let b=e.target.closest('[data-chamber]');if(!b)return;const act=b.dataset.chamber;if(act==='select')return action('select',{nomineeId:b.dataset.id});if(['join','rejoin','exit'].includes(act))return action(act,{});if(['cancel','close','reveal','reveal-all'].includes(act)){if((act==='cancel'||act==='reveal-all')&&!confirm('Confirm this action?'))return;return action('admin',{action:act})}});
+refresh();setInterval(refresh,2500);setInterval(()=>{if(data?.active?.status==='discussion'&&data.active.members.some(m=>m.id===memberId&&m.online))request('heartbeat',{}).catch(()=>{});},5000);
+})();
