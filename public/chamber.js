@@ -6,7 +6,7 @@ function alertError(e){window.alert(e.message)}
 function timer(ts){if(!ts)return '--:--';let sec=Math.max(0,Math.ceil((ts-Date.now())/1000));return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')}
 function memberLabel(s,id){return s.members.find(m=>m.id===id)?.name||'Member'}
 async function action(path,body){try{await request(path,body);await refresh()}catch(e){alertError(e)}}
-function render(){if(!data)return;const focus=document.activeElement;const focusName=focus?.name||'';const focusId=focus?.id||'';const focusValue=focus?.value||'';const hadFocus=focus&&(focus.tagName==='INPUT'||focus.tagName==='SELECT'||focus.tagName==='TEXTAREA');const s=data.active,box=q('chamberPublic'),privateBox=q('chamberPrivate'),adminBox=q('chamberAdmin');if(!box)return;
+function render(){if(!data)return;const focus=document.activeElement;const focusName=focus?.name||'';const focusId=focus?.id||'';const focusValue=focus?.value||'';const hadFocus=focus&&(focus.tagName==='INPUT'||focus.tagName==='SELECT'||focus.tagName==='TEXTAREA')&&!!focus.closest('#chamberPublic, #chamberPrivate, #chamberAdmin');const s=data.active,box=q('chamberPublic'),privateBox=q('chamberPrivate'),adminBox=q('chamberAdmin');if(!box)return;
  if(!s){box.innerHTML='<p class="muted">Chamber is currently closed. Wait for an official invitation.</p>';privateBox.innerHTML='';}
  else{
  const names=s.members.map(m=>escape(m.name)).join(' ⚔️ '),deadline=s.status==='scheduled'?s.entryDeadline:s.decisionEndsAt;
