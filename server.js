@@ -339,7 +339,8 @@ function chamberTick(s){
 function chamberView(s,admin,member){
   if(!s)return null;
   const eligible=!!member&&s.members.includes(member.id);
-  const base={id:s.id,status:s.status,members:s.members.map(id=>({id,name:chamberName(id),joined:!!s.joined[id],online:!!s.online[id]})),reportAt:s.reportAt,entryDeadline:s.entryDeadline,decisionEndsAt:s.decisionEndsAt||null,completedAt:s.completedAt||null,revealed:!!s.revealed};
+  const visible=admin||eligible||s.namesVisible!==false;
+  const base={id:s.id,status:s.status,namesVisible:s.namesVisible!==false,members:s.members.map((id,i)=>({id:visible?id:null,name:visible?chamberName(id):'Hidden Participant '+(i+1),joined:visible?!!s.joined[id]:false,online:visible?!!s.online[id]:false})),reportAt:s.reportAt,entryDeadline:s.entryDeadline,decisionEndsAt:s.decisionEndsAt||null,completedAt:s.completedAt||null,revealed:!!s.revealed};
   if(admin||eligible){base.messages=s.messages;base.selections=admin?s.selections:{mine:s.selections[member.id]||null};base.nominated=s.status==='complete'&&(admin||s.revealed)?s.nominated:[];base.reason=admin||s.revealed?s.reason:null;}
   if(s.revealed){base.nominated=s.nominated;base.reason=s.reason;}
   return base;
@@ -389,11 +390,13 @@ async function api(req, res, url) {
         if(!poll)return bad(res,'Select a draft nomination poll (before voting begins)');
         const reportAt=Date.parse(b.reportAt);
         if(!Number.isFinite(reportAt)||reportAt<Date.now()-60000||reportAt>Date.now()+90*86400000)return bad(res,'Choose a valid future reporting time');
-        const x={id:crypto.randomUUID(),members,pollId:poll.id,reportAt,entryDeadline:reportAt+120000,decisionEndsAt:null,status:'scheduled',joined:{},online:{},selections:{},messages:[],nominated:[],revealed:false,reason:null,createdAt:Date.now()};
+        const x={id:crypto.randomUUID(),members,pollId:poll.id,reportAt,entryDeadline:reportAt+120000,decisionEndsAt:null,status:'scheduled',joined:{},online:{},selections:{},messages:[],nominated:[],revealed:false,namesVisible:b.namesVisible!==false,reason:null,createdAt:Date.now()};
         c.sessions.push(x);c.sessions=c.sessions.slice(-100);c.activeId=x.id;log('Chamber scheduled',members.map(chamberName).join(' vs '));await save();return send(res,200,{ok:true});
       }
       if(!s)return bad(res,'No active session');
-      if(b.action==='cancel'){if(s.status==='complete')return bad(res,'Completed results cannot be cancelled');s.status='cancelled';log('Chamber cancelled',s.id);}
+      if(b.action==='visibility'){s.namesVisible=!!b.visible;log('Chamber visibility',s.namesVisible?'Shown':'Hidden');}
+      else if(b.action==='reschedule'){if(s.status!=='scheduled')return bad(res,'Only scheduled sessions can be rescheduled');const at=Date.parse(b.reportAt);if(!Number.isFinite(at)||at<Date.now()-60000||at>Date.now()+90*86400000)return bad(res,'Choose a valid future reporting time');s.reportAt=at;s.entryDeadline=at+120000;log('Chamber rescheduled',s.id);}
+      else if(b.action==='cancel'){if(s.status==='complete')return bad(res,'Completed results cannot be cancelled');s.status='cancelled';log('Chamber cancelled',s.id);}
       else if(b.action==='close'){if(s.status!=='complete'&&s.status!=='cancelled')return bad(res,'Finish or cancel session first');c.activeId=null;}
       else if(b.action==='reveal'){if(s.status!=='complete')return bad(res,'Result not ready');s.revealed=true;log('Chamber result revealed',s.id);}
       else if(b.action==='reveal-all'){for(const x of c.sessions)if(x.status==='complete')x.revealed=true;log('Chamber grand reveal','All completed results');}
