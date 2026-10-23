@@ -724,7 +724,7 @@ async function api(req, res, url) {
   if (route === '/api/spotlight/admin' && req.method === 'POST') {
     if (b.action==='remove') db.spotlight=db.spotlight.filter(x=>x.id!==b.id);
     else if (b.action==='add') {
-      if (!db.members.some(m=>m.id===b.memberId) || !required(b.title,100) || typeof b.description!=='string' || b.description.length>300 || !['gold','purple','red','blue'].includes(b.theme)) return bad(res,'Invalid spotlight');
+      if (!db.members.some(m=>m.id===b.memberId) || !required(b.title,100) || typeof b.description!=='string' || b.description.length>10000 || !['gold','purple','red','blue'].includes(b.theme)) return bad(res,'Invalid spotlight');
       if (b.expires && (!/^\d{4}-\d{2}-\d{2}$/.test(b.expires) || !Number.isFinite(Date.parse(b.expires)))) return bad(res,'Invalid expiry');
       db.spotlight.push({id:crypto.randomUUID(),memberId:b.memberId,title:b.title.trim(),description:b.description.trim(),theme:b.theme,expires:b.expires||'',order:db.spotlight.length});
     } else return bad(res,'Invalid spotlight action');
