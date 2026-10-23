@@ -16,7 +16,7 @@ const memberName=id=>adminData?.members.find(m=>m.id===id)?.name||'Member';
 function renderLegacyPublic(){
   const entries=state.spotlight||[];
   $('#spotlightSection').classList.toggle('hidden',!entries.length||state.locked);
-  $('#spotlightCards').innerHTML=entries.map(x=>`<article class="spotlightCard ${esc(x.theme)}">${x.member.photo?`<img src="${esc(x.member.photo)}" alt="">`:''}<small>✦ FEATURED MEMBER</small><h3>${esc(x.member.name)}</h3><strong>${esc(x.title)}</strong><p>${esc(x.description)}</p>${x.member.visibility==='public'?`<button data-profile="${esc(x.member.id)}">View Public Profile ↗</button>`:''}</article>`).join('');
+  $('#spotlightCards').innerHTML=entries.map(x=>`<article class="spotlightCard ${esc(x.theme)}">${x.member.photo?`<img src="${esc(x.member.photo)}" alt="">`:''}<small>✦ FEATURED MEMBER</small><h3>${esc(x.member.name)}</h3><strong>${esc(x.title)}</strong><details class="spotlightDescription"><summary>Read full description</summary><p>${esc(x.description)}</p></details>${x.member.visibility==='public'?`<button data-profile="${esc(x.member.id)}">View Public Profile ↗</button>`:''}</article>`).join('');
   $('#teamCards').innerHTML=(state.teams||[]).length?state.teams.map((t,i)=>`<article class="teamCard"><small>#${i+1} TEAM</small><h3>${esc(t.name)}</h3><strong>${t.competitionPoints.toLocaleString()} TEAM PTS</strong><p class="muted">Members' combined points: ${t.memberPoints.toLocaleString()}</p><p>👑 Captain: ${esc(t.captain||'Not assigned')}</p><p class="muted">${t.members.map(m=>esc(m.name)).join(' · ')}</p></article>`).join(''):'<p class="empty">Team battles coming soon.</p>';
 }
 function profileMarkup(p,detailed){

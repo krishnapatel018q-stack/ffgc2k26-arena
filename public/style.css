@@ -16,3 +16,6 @@
 #newsCards .card p {white-space:pre-wrap;overflow-wrap:anywhere;}
 #adminAnnouncements .adminRow {gap:12px;flex-wrap:wrap;}
 #adminAnnouncements .adminRow > div {min-width:0;overflow-wrap:anywhere;}
+
+/* Long-form Hall of Spotlight descriptions */
+.spotlightDescription{margin:14px 0;color:#e3ddf5;overflow-wrap:anywhere}.spotlightDescription summary{cursor:pointer;color:#f5d68a;font-weight:700;padding:8px 0}.spotlightDescription p{white-space:pre-wrap;line-height:1.65;max-height:420px;overflow-y:auto;padding-right:6px}.spotlightCard{overflow-wrap:anywhere}
