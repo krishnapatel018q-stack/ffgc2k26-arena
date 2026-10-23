@@ -450,8 +450,7 @@ async function api(req, res, url) {
     const spent=(id)=>house.auctions.filter(a=>a.cycle===cycle&&a.closed&&a.winnerId===id).reduce((n,a)=>n+a.winningBid,0);
     const locked=(id)=>house.auctions.filter(a=>a.cycle===cycle&&!a.closed&&a.endAt>now).reduce((n,a)=>{const top=bidsOf(a).at(-1);return n+(top?.memberId===id?top.amount:0)},0);
     const balance=(id)=>Math.max(0,1000-spent(id)-locked(id));
-    const settle=()=>{let changed=false;for(const a of house.auctions){if(!a.closed&&a.endAt<=now){a.closed=true;const win=bidsOf(a).at(-1);if(win){a.winnerId=win.memberId;a.winningBid=win.amount;house.inventory.push({id:crypto.randomUUID(),memberId:win.memberId,auctionId:a.id,title:a.title,description:a.description,wonAt:new Date().toISOString(),expiresAt:new Date(now+30*86400000).toISOString(),used:false});}changed=true;}}return changed;};
-    if(settle()) await save();
+    if(settleAuctions()) await save();
     if(route==='/api/auction/state'&&req.method==='GET') return send(res,200,{enabled:house.enabled,cycle,cycleEndsAt:new Date(house.cycleStart+(cycle+1)*cycleMs).toISOString(),wallet:member?{memberId:member.id,balance:balance(member.id),locked:locked(member.id),spent:spent(member.id)}:null,inventory:member?owned(member.id):[],auctions:house.auctions.map(a=>({id:a.id,title:a.title,description:a.description,rarity:a.rarity,startAt:a.startAt,endAt:a.endAt,startingBid:a.startingBid,minIncrement:a.minIncrement,cycle:a.cycle,closed:a.closed,winnerId:a.closed?a.winnerId:null,winningBid:a.closed?a.winningBid:null,highestBid:bidsOf(a).at(-1)?.amount||0,bids:bidsOf(a).map(x=>({memberName:db.members.find(m=>m.id===x.memberId)?.name||'Member',amount:x.amount,at:x.at}))}))});
     if(route==='/api/auction/bid'&&req.method==='POST'){
       if(!member)return bad(res,'Member login required',401);
@@ -1123,6 +1122,45 @@ async function api(req, res, url) {
   return bad(res, 'Unknown endpoint', 404);
 }
 
+// Close auctions independently of visits to the Auction House page.
+// Repair previously closed auctions missing inventory or spotlight entries.
+function settleAuctions() {
+  const house = db.auctionHouse;
+  if (!house || !Array.isArray(house.auctions)) return false;
+  house.inventory ||= [];
+  db.spotlight ||= [];
+  const now = Date.now(), cycleMs = 10 * 86400000;
+  let changed = false;
+  for (const a of house.auctions) {
+    const endAt = Number(a.endAt);
+    if (!a.closed && Number.isFinite(endAt) && endAt <= now) {
+      a.closed = true;
+      const top = (a.bids || []).at(-1);
+      if (top) { a.winnerId = top.memberId; a.winningBid = top.amount; }
+      changed = true;
+    }
+    if (!a.closed || !a.winnerId) continue;
+    const winner = db.members.find(m => m.id === a.winnerId);
+    if (!winner) continue;
+    const wonTime = Number.isFinite(endAt) ? endAt : now;
+    if (!house.inventory.some(x => x.auctionId === a.id && x.memberId === a.winnerId)) {
+      house.inventory.push({id:crypto.randomUUID(),memberId:a.winnerId,auctionId:a.id,
+        title:a.title,description:a.description,wonAt:new Date(wonTime).toISOString(),
+        expiresAt:new Date(wonTime + 30 * 86400000).toISOString(),used:false});
+      changed = true;
+    }
+    const cycleEnd = Number(house.cycleStart) + (Number(a.cycle) + 1) * cycleMs;
+    if (Number.isFinite(cycleEnd) && cycleEnd > now && !db.spotlight.some(x => x.auctionId === a.id)) {
+      db.spotlight.push({id:crypto.randomUUID(),auctionId:a.id,memberId:a.winnerId,
+        title:'🏆 Auction Winner — ' + winner.name,
+        description:winner.name + ' won ' + a.title + ' for ' + a.winningBid + ' auction coins.',
+        theme:'gold',expires:new Date(cycleEnd).toISOString(),order:db.spotlight.length});
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 // STATIC WEBSITE FILES
 const types = {
   '.html': 'text/html; charset=utf-8',
@@ -1181,6 +1219,12 @@ const server = http.createServer((req, res) => {
     }
   );
 });
+
+// Serialize scheduled settlement with API writes.
+setInterval(() => {
+  const run = async () => { if (settleAuctions()) await save(); };
+  requestQueue = requestQueue.then(run, run).catch(e => console.error('Auction settlement:', e));
+}, 10000);
 
 // START SERVER AFTER DATABASE CONNECTION
 load()
