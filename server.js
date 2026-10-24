@@ -380,7 +380,7 @@ async function api(req, res, url) {
     const acc=m?e.accounts[m.id]:null;
     if(route==='/api/economy/order'&&req.method==='POST'){
       if(!m)return bad(res,'Member only',403);
-      if(!e.marketOpen)return bad(res,'Trading closed');
+      if(!econMarketOpen(e))return bad(res,'Market opens daily at 12:00 PM and closes at 12:00 AM IST');
       const co=e.companies.find(x=>x.id===b.companyId&&!x.archived&&!x.frozen);
       const qty=econNum(b.quantity);
       if(!co||!qty||qty>1000||!['buy','sell'].includes(b.side))return bad(res,'Invalid trade');
@@ -388,6 +388,7 @@ async function api(req, res, url) {
       if(b.side==='buy'&&acc.cash<cost)return bad(res,'Insufficient FC');
       if(b.side==='sell'&&(acc.shares[co.id]||0)<qty)return bad(res,'Insufficient shares');
       if(b.side==='buy'&&co.supply<qty)return bad(res,'Not enough shares available');
+      if(b.side==='buy'&&(acc.shares[co.id]||0)+qty+e.orders.filter(x=>x.memberId===m.id&&x.companyId===co.id&&x.side==='buy'&&x.status==='pending').reduce((n,x)=>n+x.quantity,0)>10)return bad(res,'Maximum 10 shares per company per member');
       // Reserve at request time, execute at locked price after approval.
       if(b.side==='buy')acc.cash-=cost;else acc.shares[co.id]-=qty;
       const order={id:crypto.randomUUID(),memberId:m.id,companyId:co.id,side:b.side,quantity:qty,price:co.price,cost,status:e.approvalMode?'pending':'approved',at:new Date().toISOString()};
@@ -399,18 +400,26 @@ async function api(req, res, url) {
       if(!m)return bad(res,'Member only',403);
       const t=e.businessTypes.find(x=>x.id===b.id&&!x.archived);
       if(!t||acc.cash<t.price)return bad(res,'Unavailable or insufficient FC');
+      if(e.businesses.filter(x=>x.memberId===m.id).length>=3)return bad(res,'Maximum 3 businesses per member');
       acc.cash-=t.price;e.businesses.push({id:crypto.randomUUID(),typeId:t.id,memberId:m.id,paidAt:Date.now()});econRecord(e,'business_purchase',m.id,t.name+' -'+t.price+' FC');await save();return send(res,200,{ok:true});
     }
     if(route==='/api/economy/product-buy'&&req.method==='POST'){
       if(!m)return bad(res,'Member only',403);
       const t=e.products.find(x=>x.id===b.id&&!x.archived);
       if(!t||t.stock===0||acc.cash<t.price)return bad(res,'Unavailable or insufficient FC');
-      acc.cash-=t.price;if(t.stock>0)t.stock--;e.items.push({id:crypto.randomUUID(),productId:t.id,title:t.name,memberId:m.id,at:new Date().toISOString(),status:'owned'});econRecord(e,'marketplace_purchase',m.id,t.name+' -'+t.price+' FC');await save();return send(res,200,{ok:true});
+      if(['analytics','prestige'].includes(t.effect)&&e.items.some(x=>x.memberId===m.id&&x.effect===t.effect))return bad(res,'Already owned');
+      acc.cash-=t.price;if(t.stock>0)t.stock--;e.items.push({id:crypto.randomUUID(),productId:t.id,title:t.name,memberId:m.id,at:new Date().toISOString(),status:'owned',effect:t.effect||'',expiresAt:t.days>0?Date.now()+t.days*86400000:null});econRecord(e,'marketplace_purchase',m.id,t.name+' -'+t.price+' FC');await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/economy/item-activate'&&req.method==='POST'){
+      if(!m)return bad(res,'Member only',403);const item=e.items.find(x=>x.id===b.id&&x.memberId===m.id&&x.effect==='business_boost'&&x.status==='owned');const owned=e.businesses.find(x=>x.id===b.businessId&&x.memberId===m.id);if(!item||!owned)return bad(res,'Invalid boost or business');item.businessId=owned.id;item.status='active';item.expiresAt=Date.now()+7*86400000;econRecord(e,'item_activated',m.id,item.title);await save();return send(res,200,{ok:true});
     }
     if(route==='/api/economy/trade-offer'&&req.method==='POST'){
       if(!m)return bad(res,'Member only',403);
       const to=db.members.find(x=>x.id===b.toId);const amount=econNum(b.amount);
       if(!to||to.id===m.id||amount===null||amount===0||acc.cash<amount)return bad(res,'Invalid offer');
+      const pass=e.items.some(x=>x.memberId===m.id&&x.effect==='trading'&&x.expiresAt>Date.now());
+      const daily=e.trades.filter(x=>x.fromId===m.id&&new Date(x.at).toDateString()===new Date().toDateString()&&!['rejected'].includes(x.status)).reduce((n,x)=>n+x.amount,0);
+      if(daily+amount>(pass?10000:3000))return bad(res,'Daily FC transfer limit reached');
       acc.cash-=amount;e.trades.push({id:crypto.randomUUID(),fromId:m.id,toId:to.id,amount,status:'offered',at:new Date().toISOString()});await save();return send(res,200,{ok:true});
     }
     if(route==='/api/economy/trade-respond'&&req.method==='POST'){
@@ -444,8 +453,8 @@ async function api(req, res, url) {
         const sc=e.schedules.find(x=>x.id===b.id&&x.status==='pending');if(!sc)return bad(res,'Only pending schedules can be cancelled');sc.status='cancelled';
       }else if(op==='business-type'||op==='product'){
         const name=String(b.name||'').trim(),price=econNum(b.price);if(!name||price===null)return bad(res,'Invalid listing');
-        if(op==='business-type'){const income=econNum(b.income),maintenance=econNum(b.maintenance);if(income===null||maintenance===null)return bad(res,'Invalid income');e.businessTypes.push({id:crypto.randomUUID(),name:name.slice(0,70),price,income,maintenance});}
-        else {const stock=econNum(b.stock);if(stock===null)return bad(res,'Invalid stock');e.products.push({id:crypto.randomUUID(),name:name.slice(0,70),price,stock});}
+        if(op==='business-type'){const income=econNum(b.income),maintenance=econNum(b.maintenance);if(income===null||maintenance===null)return bad(res,'Invalid income');const existing=e.businessTypes.find(x=>x.id===b.id);if(existing)Object.assign(existing,{name:name.slice(0,70),price,income,maintenance});else e.businessTypes.push({id:crypto.randomUUID(),name:name.slice(0,70),price,income,maintenance});}
+        else {const stock=econNum(b.stock);if(stock===null)return bad(res,'Invalid stock');const existing=e.products.find(x=>x.id===b.id);if(existing)Object.assign(existing,{name:name.slice(0,70),price,stock});else e.products.push({id:crypto.randomUUID(),name:name.slice(0,70),price,stock});}
       }else if(op==='archive-listing'){
         const list=b.kind==='business'?e.businessTypes:e.products;const x=list.find(x=>x.id===b.id);if(!x)return bad(res,'Not found');x.archived=true;
       }else if(op==='review-order'){
@@ -1310,11 +1319,23 @@ function settleAuctions() {
 function economyStore(){
   if(!db.economy)db.economy={enabled:true,marketOpen:true,approvalMode:false,initialCash:2000,accounts:{},companies:[],businessTypes:[],businesses:[],products:[],items:[],trades:[],orders:[],schedules:[],history:[],lastTick:Date.now()};
   const e=db.economy;
+  // One-time seed: never overwrite or reset existing accounts, listings or purchases.
+  e.seedVersion ||= 0;
+  if(e.seedVersion<1){
+    const companySeeds=[['Royal Crown Industries',500,100],['Diamond Empire Ltd.',450,120],['Thunderbolt Energy',320,150],['NovaTech Solutions',280,180],['Imperial Banking Corp.',250,200],['Phoenix Motors',220,220],['CyberCore Technologies',180,250],['Skyline Real Estate',150,300],['MegaMart Retail',120,350],['GreenFuture Energy',100,400],['PixelVerse Gaming',75,500],['StarLink Entertainment',50,600]];
+    for(const [name,price,supply] of companySeeds)if(!e.companies.some(x=>x.name.toLowerCase()===name.toLowerCase()))e.companies.push({id:crypto.randomUUID(),name,price,supply,history:[{at:new Date().toISOString(),price}],frozen:false});
+    const businessSeeds=[['Royal Café',8000,400],['Gaming Lounge',12000,650],['Premium Restaurant',18000,950],['Shopping Complex',25000,1300],['Luxury Hotel',40000,2100],['Finance Corporation',60000,3200],['Industrial Factory',85000,4500],['Diamond Corporation',120000,6500],['Royal Business Empire',200000,11000]];
+    for(const [name,price,income] of businessSeeds)if(!e.businessTypes.some(x=>x.name.toLowerCase()===name.toLowerCase()))e.businessTypes.push({id:crypto.randomUUID(),name,price,income,maintenance:0});
+    const productSeeds=[['FC Bonus Pack',1500,'bonus',1],['Trading Pass',2500,'trading',7],['Banking Plus',4000,'analytics',0],['Business Booster',6000,'business_boost',7],['VIP Investor Badge',10000,'vip_badge',30],['Empire Prestige',25000,'prestige',0]];
+    for(const [name,price,effect,days] of productSeeds)if(!e.products.some(x=>x.name.toLowerCase()===name.toLowerCase()))e.products.push({id:crypto.randomUUID(),name,price,stock:-1,effect,days});
+    e.seedVersion=1;
+  }
   for(const k of ['companies','businessTypes','businesses','products','items','trades','orders','schedules','history'])e[k] ||= [];
   e.accounts ||= {};
   for(const m of db.members) if(!e.accounts[m.id])e.accounts[m.id]={cash:e.initialCash??2000,shares:{}};
   return e;
 }
+function econMarketOpen(e){const d=new Date();const ist=new Date(d.getTime()+330*60000);const hour=ist.getUTCHours();return e.marketOpen!==false&&hour>=12&&hour<24;}
 function econRecord(e,action,memberId,detail){e.history.unshift({id:crypto.randomUUID(),at:new Date().toISOString(),action,memberId,detail});if(e.history.length>2500)e.history.length=2500;}
 function econNum(x){const n=Number(x);return Number.isSafeInteger(n)&&n>=0&&n<=100000000?n:null;}
 function econSettle(){
@@ -1334,7 +1355,7 @@ function econSettle(){
   // Business income is granted only for completed 7-day cycles, capped per tick.
   for(const owned of e.businesses){const type=e.businessTypes.find(x=>x.id===owned.typeId);if(!type||type.archived)continue;
     const cycles=Math.min(12,Math.floor((now-owned.paidAt)/(7*86400000)));
-    if(cycles>0){const acc=e.accounts[owned.memberId];if(acc){const net=Math.max(0,type.income-type.maintenance);acc.cash+=net*cycles;owned.paidAt+=cycles*7*86400000;econRecord(e,'business_income',owned.memberId,type.name+': +'+(net*cycles)+' FC');changed=true;}}
+    if(cycles>0){const acc=e.accounts[owned.memberId];if(acc){let net=Math.max(0,type.income-type.maintenance);const bonus=e.items.find(x=>x.memberId===owned.memberId&&x.effect==='bonus'&&x.status==='owned');if(bonus){net=Math.round(net*1.1);bonus.status='used';}const boost=e.items.some(x=>x.memberId===owned.memberId&&x.effect==='business_boost'&&x.businessId===owned.id&&x.expiresAt>now);if(boost)net=Math.round(net*1.2);acc.cash+=net*cycles;owned.paidAt+=cycles*7*86400000;econRecord(e,'business_income',owned.memberId,type.name+': +'+(net*cycles)+' FC');changed=true;}}
   }
   return changed;
 }
@@ -1343,8 +1364,8 @@ function economyView(e,member,admin){
  const account=member?e.accounts[member.id]:null;
  const memberBusinesses=e.businesses.filter(x=>member&&x.memberId===member.id);
  const networth=account?account.cash+companies.reduce((sum,c)=>sum+(account.shares[c.id]||0)*c.price,0)+memberBusinesses.reduce((sum,b)=>sum+(e.businessTypes.find(t=>t.id===b.typeId)?.price||0),0):0;
- const ranks=db.members.map(m=>{const a=e.accounts[m.id]||{cash:0,shares:{}};return {name:m.name,netWorth:a.cash+companies.reduce((sum,c)=>sum+(a.shares[c.id]||0)*c.price,0)+e.businesses.filter(b=>b.memberId===m.id).reduce((sum,b)=>sum+(e.businessTypes.find(t=>t.id===b.typeId)?.price||0),0)}}).sort((a,b)=>b.netWorth-a.netWorth);
- return {enabled:e.enabled,marketOpen:e.marketOpen,approvalMode:e.approvalMode,member:member?{id:member.id,name:member.name,account,netWorth:networth,businesses:memberBusinesses,items:e.items.filter(x=>x.memberId===member.id),orders:e.orders.filter(x=>x.memberId===member.id),trades:e.trades.filter(x=>x.fromId===member.id||x.toId===member.id),history:e.history.filter(x=>x.memberId===member.id).slice(0,60)}:null,companies,businessTypes:e.businessTypes.filter(x=>!x.archived),products:e.products.filter(x=>!x.archived),rankings:ranks.slice(0,30),members:admin?db.members.map(m=>({id:m.id,name:m.name,cash:e.accounts[m.id]?.cash||0})):undefined,admin:admin?{schedules:e.schedules,orders:e.orders,trades:e.trades,history:e.history.slice(0,200),businesses:e.businesses,settings:{initialCash:e.initialCash}}:undefined};
+ const ranks=db.members.map(m=>{const a=e.accounts[m.id]||{cash:0,shares:{}};const items=e.items.filter(x=>x.memberId===m.id);const badges=[items.some(x=>x.effect==='vip_badge'&&x.expiresAt>Date.now())?'👑 VIP':'',items.some(x=>x.effect==='prestige')?'💎 Prestige':''].filter(Boolean).join(' ');return {name:m.name,badges,netWorth:a.cash+companies.reduce((sum,c)=>sum+(a.shares[c.id]||0)*c.price,0)+e.businesses.filter(b=>b.memberId===m.id).reduce((sum,b)=>sum+(e.businessTypes.find(t=>t.id===b.typeId)?.price||0),0)}}).sort((a,b)=>b.netWorth-a.netWorth);
+ return {enabled:e.enabled,marketOpen:econMarketOpen(e),approvalMode:e.approvalMode,member:member?{id:member.id,name:member.name,account,netWorth:networth,businesses:memberBusinesses,items:e.items.filter(x=>x.memberId===member.id),orders:e.orders.filter(x=>x.memberId===member.id),trades:e.trades.filter(x=>x.fromId===member.id||x.toId===member.id),history:e.history.filter(x=>x.memberId===member.id).slice(0,60),achievements:[...(e.orders.some(x=>x.memberId===member.id&&x.side==='buy'&&x.status==='approved')?['🏅 First Investor']:[]),...(memberBusinesses.length?['🏢 Business Tycoon']:[]),...(networth>=100000?['💎 Millionaire Club']:[]),...(e.orders.filter(x=>x.memberId===member.id&&x.status==='approved').length>=50?['📈 Market Legend']:[])]}:null,companies,businessTypes:e.businessTypes.filter(x=>!x.archived),products:e.products.filter(x=>!x.archived),rankings:ranks.slice(0,30),tradeMembers:member?db.members.filter(x=>x.id!==member.id).map(x=>({id:x.id,name:x.name})):[],activity:e.orders.filter(x=>x.status==='approved').slice(-20).reverse().map(x=>({company:e.companies.find(c=>c.id===x.companyId)?.name||'Company',side:x.side,quantity:x.quantity,at:x.at})),members:admin?db.members.map(m=>({id:m.id,name:m.name,cash:e.accounts[m.id]?.cash||0})):undefined,admin:admin?{schedules:e.schedules,orders:e.orders,trades:e.trades,history:e.history.slice(0,200),businesses:e.businesses,holdings:db.members.map(m=>({name:m.name,id:m.id,shares:e.accounts[m.id]?.shares||{},orders:e.orders.filter(o=>o.memberId===m.id).slice(-50)})),items:e.items,settings:{initialCash:e.initialCash}}:undefined};
 }
 
 // STATIC WEBSITE FILES
@@ -1414,6 +1435,7 @@ setInterval(() => {
 
 // START SERVER AFTER DATABASE CONNECTION
 load()
+  .then(async () => {const previous=db.economy?.seedVersion||0;economyStore();if(previous<1)await save();})
   .then(() =>
     server.listen(PORT, () =>
       console.log(`FFGC2K26 running on port ${PORT}`)
