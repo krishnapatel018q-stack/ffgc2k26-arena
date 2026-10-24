@@ -466,7 +466,7 @@ async function api(req, res, url) {
       if(b.side==='buy'&&acc.cash<cost)return bad(res,'Insufficient FC');
       if(b.side==='sell'&&(acc.shares[co.id]||0)<qty)return bad(res,'Insufficient shares');
       if(b.side==='buy'&&co.supply<qty)return bad(res,'Not enough shares available');
-      if(b.side==='buy'&&(acc.shares[co.id]||0)+qty+e.orders.filter(x=>x.memberId===m.id&&x.companyId===co.id&&x.side==='buy'&&x.status==='pending').reduce((n,x)=>n+x.quantity,0)>10)return bad(res,'Maximum 10 shares per company per member');
+      
       // Reserve at request time, execute at locked price after approval.
       if(b.side==='buy')acc.cash-=cost;else acc.shares[co.id]-=qty;
       const order={id:crypto.randomUUID(),memberId:m.id,companyId:co.id,side:b.side,quantity:qty,price:co.price,cost,status:e.approvalMode?'pending':'approved',at:new Date().toISOString()};
