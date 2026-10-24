@@ -371,6 +371,101 @@ async function api(req, res, url) {
   const route = url.pathname;
   const admin = isAdmin(req);
 
+
+  if(route.startsWith('/api/economy/')){
+    const e=economyStore(),m=memberSession(req);
+    if(route==='/api/economy/state'&&req.method==='GET')return send(res,200,economyView(e,m,admin));
+    if(!admin&&!m)return bad(res,'Login with your private member ID first',401);
+    if(!admin&&!e.enabled)return bad(res,'Economy temporarily closed',403);
+    const acc=m?e.accounts[m.id]:null;
+    if(route==='/api/economy/order'&&req.method==='POST'){
+      if(!m)return bad(res,'Member only',403);
+      if(!e.marketOpen)return bad(res,'Trading closed');
+      const co=e.companies.find(x=>x.id===b.companyId&&!x.archived&&!x.frozen);
+      const qty=econNum(b.quantity);
+      if(!co||!qty||qty>1000||!['buy','sell'].includes(b.side))return bad(res,'Invalid trade');
+      const cost=qty*co.price;if(!Number.isSafeInteger(cost))return bad(res,'Invalid cost');
+      if(b.side==='buy'&&acc.cash<cost)return bad(res,'Insufficient FC');
+      if(b.side==='sell'&&(acc.shares[co.id]||0)<qty)return bad(res,'Insufficient shares');
+      if(b.side==='buy'&&co.supply<qty)return bad(res,'Not enough shares available');
+      // Reserve at request time, execute at locked price after approval.
+      if(b.side==='buy')acc.cash-=cost;else acc.shares[co.id]-=qty;
+      const order={id:crypto.randomUUID(),memberId:m.id,companyId:co.id,side:b.side,quantity:qty,price:co.price,cost,status:e.approvalMode?'pending':'approved',at:new Date().toISOString()};
+      e.orders.push(order);
+      if(!e.approvalMode){if(b.side==='buy'){acc.shares[co.id]=(acc.shares[co.id]||0)+qty;co.supply-=qty;}else{acc.cash+=cost;co.supply+=qty;}econRecord(e,'trade',m.id,b.side+' '+qty+' '+co.name+' @ '+co.price);}
+      await save();return send(res,200,{ok:true,status:order.status});
+    }
+    if(route==='/api/economy/business-buy'&&req.method==='POST'){
+      if(!m)return bad(res,'Member only',403);
+      const t=e.businessTypes.find(x=>x.id===b.id&&!x.archived);
+      if(!t||acc.cash<t.price)return bad(res,'Unavailable or insufficient FC');
+      acc.cash-=t.price;e.businesses.push({id:crypto.randomUUID(),typeId:t.id,memberId:m.id,paidAt:Date.now()});econRecord(e,'business_purchase',m.id,t.name+' -'+t.price+' FC');await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/economy/product-buy'&&req.method==='POST'){
+      if(!m)return bad(res,'Member only',403);
+      const t=e.products.find(x=>x.id===b.id&&!x.archived);
+      if(!t||t.stock===0||acc.cash<t.price)return bad(res,'Unavailable or insufficient FC');
+      acc.cash-=t.price;if(t.stock>0)t.stock--;e.items.push({id:crypto.randomUUID(),productId:t.id,title:t.name,memberId:m.id,at:new Date().toISOString(),status:'owned'});econRecord(e,'marketplace_purchase',m.id,t.name+' -'+t.price+' FC');await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/economy/trade-offer'&&req.method==='POST'){
+      if(!m)return bad(res,'Member only',403);
+      const to=db.members.find(x=>x.id===b.toId);const amount=econNum(b.amount);
+      if(!to||to.id===m.id||amount===null||amount===0||acc.cash<amount)return bad(res,'Invalid offer');
+      acc.cash-=amount;e.trades.push({id:crypto.randomUUID(),fromId:m.id,toId:to.id,amount,status:'offered',at:new Date().toISOString()});await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/economy/trade-respond'&&req.method==='POST'){
+      if(!m)return bad(res,'Member only',403);
+      const t=e.trades.find(x=>x.id===b.id&&x.toId===m.id&&x.status==='offered');if(!t)return bad(res,'Offer not found');
+      if(b.action==='reject'){e.accounts[t.fromId].cash+=t.amount;t.status='rejected';}
+      else if(b.action==='accept')t.status='pending';else return bad(res,'Invalid action');
+      await save();return send(res,200,{ok:true});
+    }
+    if(!admin)return bad(res,'God Admin only',403);
+    if(route==='/api/economy/admin'&&req.method==='POST'){
+      const op=b.action;
+      if(op==='settings'){
+        for(const key of ['enabled','marketOpen','approvalMode'])if(typeof b[key]==='boolean')e[key]=b[key];
+      }else if(op==='cash'){
+        const a=e.accounts[b.memberId],n=econNum(b.amount);if(!a||n===null||!['add','subtract'].includes(b.mode))return bad(res,'Invalid adjustment');
+        if(b.mode==='subtract'&&a.cash<n)return bad(res,'Insufficient cash');a.cash+=b.mode==='add'?n:-n;econRecord(e,'admin_cash',b.memberId,b.mode+' '+n+' FC');
+      }else if(op==='company'){
+        const price=econNum(b.price),supply=econNum(b.supply);if(!String(b.name||'').trim()||!price||supply===null)return bad(res,'Invalid company');
+        const co=b.id?e.companies.find(x=>x.id===b.id):null;
+        if(co){co.name=String(b.name).slice(0,70);co.price=price;co.supply=supply;co.history.push({at:new Date().toISOString(),price});}
+        else e.companies.push({id:crypto.randomUUID(),name:String(b.name).slice(0,70),price,supply,history:[{at:new Date().toISOString(),price}],frozen:false});
+      }else if(op==='company-control'){
+        const co=e.companies.find(x=>x.id===b.id);if(!co)return bad(res,'Company missing');
+        if(b.mode==='freeze')co.frozen=true;else if(b.mode==='unfreeze')co.frozen=false;else if(b.mode==='archive')co.archived=true;else return bad(res,'Invalid mode');
+      }else if(op==='schedule'){
+        const co=e.companies.find(x=>x.id===b.companyId&&!x.archived),target=econNum(b.target),startAt=Date.parse(b.startAt),minutes=Number(b.minutes);
+        if(!co||!target||!Number.isFinite(startAt)||startAt<Date.now()-60000||!Number.isFinite(minutes)||minutes<1||minutes>1440)return bad(res,'Invalid schedule');
+        e.schedules.push({id:crypto.randomUUID(),companyId:co.id,target,startAt,durationMs:minutes*60000,status:'pending'});
+      }else if(op==='cancel-schedule'){
+        const sc=e.schedules.find(x=>x.id===b.id&&x.status==='pending');if(!sc)return bad(res,'Only pending schedules can be cancelled');sc.status='cancelled';
+      }else if(op==='business-type'||op==='product'){
+        const name=String(b.name||'').trim(),price=econNum(b.price);if(!name||price===null)return bad(res,'Invalid listing');
+        if(op==='business-type'){const income=econNum(b.income),maintenance=econNum(b.maintenance);if(income===null||maintenance===null)return bad(res,'Invalid income');e.businessTypes.push({id:crypto.randomUUID(),name:name.slice(0,70),price,income,maintenance});}
+        else {const stock=econNum(b.stock);if(stock===null)return bad(res,'Invalid stock');e.products.push({id:crypto.randomUUID(),name:name.slice(0,70),price,stock});}
+      }else if(op==='archive-listing'){
+        const list=b.kind==='business'?e.businessTypes:e.products;const x=list.find(x=>x.id===b.id);if(!x)return bad(res,'Not found');x.archived=true;
+      }else if(op==='review-order'){
+        const o=e.orders.find(x=>x.id===b.id&&x.status==='pending');if(!o)return bad(res,'Pending order not found');
+        const a=e.accounts[o.memberId],co=e.companies.find(x=>x.id===o.companyId);if(!a||!co)return bad(res,'Account/company missing');
+        if(b.decision==='reject'){if(o.side==='buy')a.cash+=o.cost;else a.shares[co.id]=(a.shares[co.id]||0)+o.quantity;o.status='rejected';}
+        else if(b.decision==='approve'){
+          if(o.side==='buy'){if(co.supply<o.quantity)return bad(res,'Not enough shares available');co.supply-=o.quantity;a.shares[co.id]=(a.shares[co.id]||0)+o.quantity;}
+          else {a.cash+=o.cost;co.supply+=o.quantity;}o.status='approved';econRecord(e,'trade',o.memberId,o.side+' '+o.quantity+' '+co.name+' @ '+o.price);
+        }else return bad(res,'Invalid decision');
+      }else if(op==='review-trade'){
+        const t=e.trades.find(x=>x.id===b.id&&x.status==='pending');if(!t)return bad(res,'Trade not found');
+        if(b.decision==='approve'){e.accounts[t.toId].cash+=t.amount;t.status='approved';econRecord(e,'member_transfer',t.fromId,'To '+t.toId+': '+t.amount+' FC');}
+        else if(b.decision==='reject'){e.accounts[t.fromId].cash+=t.amount;t.status='rejected';}else return bad(res,'Invalid decision');
+      }else return bad(res,'Unknown admin action');
+      await save();return send(res,200,{ok:true});
+    }
+    return bad(res,'Unknown economy endpoint',404);
+  }
+
   // DECISION CHAMBER — member/admin authentication is enforced on every route.
   if(route.startsWith('/api/chamber/')){
     const c=chamberStore(),member=memberSession(req),s=chamberActive();
@@ -1210,6 +1305,48 @@ function settleAuctions() {
   return changed;
 }
 
+
+// ECONOMIC EMPIRE: independent virtual economy (never touches ranking points/auction coins).
+function economyStore(){
+  if(!db.economy)db.economy={enabled:true,marketOpen:true,approvalMode:false,initialCash:2000,accounts:{},companies:[],businessTypes:[],businesses:[],products:[],items:[],trades:[],orders:[],schedules:[],history:[],lastTick:Date.now()};
+  const e=db.economy;
+  for(const k of ['companies','businessTypes','businesses','products','items','trades','orders','schedules','history'])e[k] ||= [];
+  e.accounts ||= {};
+  for(const m of db.members) if(!e.accounts[m.id])e.accounts[m.id]={cash:e.initialCash??2000,shares:{}};
+  return e;
+}
+function econRecord(e,action,memberId,detail){e.history.unshift({id:crypto.randomUUID(),at:new Date().toISOString(),action,memberId,detail});if(e.history.length>2500)e.history.length=2500;}
+function econNum(x){const n=Number(x);return Number.isSafeInteger(n)&&n>=0&&n<=100000000?n:null;}
+function econSettle(){
+  if(!db.economy)return false;
+  const e=economyStore(),now=Date.now();let changed=false;
+  for(const sc of e.schedules){
+    if(sc.status==='cancelled'||sc.status==='done')continue;
+    const co=e.companies.find(x=>x.id===sc.companyId);
+    if(!co||co.archived){sc.status='cancelled';changed=true;continue;}
+    if(now<sc.startAt)continue;
+    if(sc.status==='pending'){sc.status='running';sc.from=co.price;changed=true;}
+    const progress=Math.min(1,Math.max(0,(now-sc.startAt)/Math.max(1000,sc.durationMs)));
+    const next=Math.max(1,Math.round(sc.from+(sc.target-sc.from)*progress));
+    if(next!==co.price){co.price=next;co.history ||= [];co.history.push({at:new Date(now).toISOString(),price:next});if(co.history.length>2000)co.history.shift();changed=true;}
+    if(progress===1){sc.status='done';econRecord(e,'scheduled_price',null,co.name+' reached '+co.price+' FC');changed=true;}
+  }
+  // Business income is granted only for completed 7-day cycles, capped per tick.
+  for(const owned of e.businesses){const type=e.businessTypes.find(x=>x.id===owned.typeId);if(!type||type.archived)continue;
+    const cycles=Math.min(12,Math.floor((now-owned.paidAt)/(7*86400000)));
+    if(cycles>0){const acc=e.accounts[owned.memberId];if(acc){const net=Math.max(0,type.income-type.maintenance);acc.cash+=net*cycles;owned.paidAt+=cycles*7*86400000;econRecord(e,'business_income',owned.memberId,type.name+': +'+(net*cycles)+' FC');changed=true;}}
+  }
+  return changed;
+}
+function economyView(e,member,admin){
+ const companies=e.companies.filter(x=>!x.archived).map(x=>({id:x.id,name:x.name,price:x.price,supply:x.supply,history:x.history||[],frozen:!!x.frozen}));
+ const account=member?e.accounts[member.id]:null;
+ const memberBusinesses=e.businesses.filter(x=>member&&x.memberId===member.id);
+ const networth=account?account.cash+companies.reduce((sum,c)=>sum+(account.shares[c.id]||0)*c.price,0)+memberBusinesses.reduce((sum,b)=>sum+(e.businessTypes.find(t=>t.id===b.typeId)?.price||0),0):0;
+ const ranks=db.members.map(m=>{const a=e.accounts[m.id]||{cash:0,shares:{}};return {name:m.name,netWorth:a.cash+companies.reduce((sum,c)=>sum+(a.shares[c.id]||0)*c.price,0)+e.businesses.filter(b=>b.memberId===m.id).reduce((sum,b)=>sum+(e.businessTypes.find(t=>t.id===b.typeId)?.price||0),0)}}).sort((a,b)=>b.netWorth-a.netWorth);
+ return {enabled:e.enabled,marketOpen:e.marketOpen,approvalMode:e.approvalMode,member:member?{id:member.id,name:member.name,account,netWorth:networth,businesses:memberBusinesses,items:e.items.filter(x=>x.memberId===member.id),orders:e.orders.filter(x=>x.memberId===member.id),trades:e.trades.filter(x=>x.fromId===member.id||x.toId===member.id),history:e.history.filter(x=>x.memberId===member.id).slice(0,60)}:null,companies,businessTypes:e.businessTypes.filter(x=>!x.archived),products:e.products.filter(x=>!x.archived),rankings:ranks.slice(0,30),members:admin?db.members.map(m=>({id:m.id,name:m.name,cash:e.accounts[m.id]?.cash||0})):undefined,admin:admin?{schedules:e.schedules,orders:e.orders,trades:e.trades,history:e.history.slice(0,200),businesses:e.businesses,settings:{initialCash:e.initialCash}}:undefined};
+}
+
 // STATIC WEBSITE FILES
 const types = {
   '.html': 'text/html; charset=utf-8',
@@ -1246,7 +1383,7 @@ const server = http.createServer((req, res) => {
     ? 'index.html'
     : u.pathname.slice(1);
 
-  if (!['index.html', 'app.js', 'style.css', 'auction.js', 'auction.css', 'arena4.css', 'chamber.js', 'chamber.css'].includes(file)) {
+  if (!['index.html', 'app.js', 'style.css', 'auction.js', 'auction.css', 'arena4.css', 'chamber.js', 'chamber.css', 'economy.html', 'economy-admin.html', 'economy.css', 'economy.js'].includes(file)) {
     return bad(res, 'Not found', 404);
   }
 
@@ -1271,7 +1408,7 @@ const server = http.createServer((req, res) => {
 
 // Serialize scheduled settlement with API writes.
 setInterval(() => {
-  const run = async () => { if (settleAuctions()) await save(); };
+  const run = async () => { const auctionChanged=settleAuctions(); const econChanged=econSettle(); if (auctionChanged||econChanged) await save(); };
   requestQueue = requestQueue.then(run, run).catch(e => console.error('Auction settlement:', e));
 }, 10000);
 
