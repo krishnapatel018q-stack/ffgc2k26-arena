@@ -372,6 +372,84 @@ async function api(req, res, url) {
   const admin = isAdmin(req);
 
 
+  // ELIMINATION ARENA: independent from existing polls and nominations.
+  // Stored inside the same Supabase JSON row; no migration or reset required.
+  if (route.startsWith('/api/elimination/')) {
+    db.eliminationPolls ||= [];
+    const member = memberSession(req);
+    const now = Date.now();
+    const statusOf = p => p.closed ? 'closed' : p.paused ? 'paused' : now < Date.parse(p.startAt) ? 'scheduled' : now >= Date.parse(p.endAt) ? 'closed' : 'active';
+    const publicPoll = p => {
+      const status=statusOf(p), show=!!p.revealed && status==='closed';
+      const data={id:p.id,title:p.title,mode:p.mode,startAt:p.startAt,endAt:p.endAt,status,
+        candidates:p.candidateIds.map(id=>({id,name:db.members.find(m=>m.id===id)?.name||'Unknown'})),
+        voted:member?!!p.votes.find(v=>v.memberId===member.id):false,
+        totalVotes:show?p.votes.length:null,revealed:show};
+      if(show) {
+        data.counts=Object.fromEntries(p.candidateIds.map(id=>[id,p.votes.filter(v=>v.candidateId===id).length]));
+        const counts=Object.values(data.counts), target=p.mode==='save'?Math.min(...counts):Math.max(...counts);
+        data.atRisk=p.candidateIds.filter(id=>data.counts[id]===target);
+        data.tie=data.atRisk.length>1;
+      }
+      return data;
+    };
+    if(route==='/api/elimination/state'&&req.method==='GET'){
+      return send(res,200,{polls:db.eliminationPolls.map(p=>admin?{
+        ...publicPoll(p),paused:!!p.paused,closed:!!p.closed,revealed:!!p.revealed,
+        votes:p.votes.map(v=>({memberId:v.memberId,candidateId:v.candidateId,at:v.at})),
+        counts:Object.fromEntries(p.candidateIds.map(id=>[id,p.votes.filter(v=>v.candidateId===id).length]))
+      }:publicPoll(p)),members:admin?db.members.map(m=>({id:m.id,name:m.name})):undefined,
+      authenticated:!!member});
+    }
+    if(route==='/api/elimination/vote'&&req.method==='POST'){
+      if(db.settings.siteMode!=='public')return bad(res,'Website voting is closed',403);
+      const p=db.eliminationPolls.find(x=>x.id===b.pollId);
+      if(!p||statusOf(p)!=='active')return bad(res,'Elimination poll is not open',403);
+      if(!required(b.code,100))return bad(res,'Enter your private ID');
+      const voter=db.members.find(m=>m.codeHash&&secureEq(m.codeHash,hash(String(b.code).trim().toUpperCase())));
+      if(!voter)return bad(res,'Incorrect private ID',403);
+      if(p.votes.some(v=>v.memberId===voter.id))return bad(res,'This private ID has already voted',409);
+      if(!p.candidateIds.includes(b.candidateId))return bad(res,'Choose a valid elimination candidate');
+      if(voter.id===b.candidateId)return bad(res,'You cannot vote for yourself',403);
+      // Re-check deadline immediately before accepting a vote.
+      if(statusOf(p)!=='active')return bad(res,'Voting has closed',403);
+      p.votes.push({memberId:voter.id,candidateId:b.candidateId,at:new Date().toISOString()});
+      await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/elimination/admin'&&req.method==='POST'){
+      if(!admin)return bad(res,'God Admin only',403);
+      if(b.action==='create'){
+        const ids=Array.isArray(b.candidateIds)?b.candidateIds:[];
+        if(!required(b.title,140)||!['save','evict'].includes(b.mode))return bad(res,'Invalid poll title or mode');
+        if(ids.length<2||new Set(ids).size!==ids.length||!ids.every(id=>db.members.some(m=>m.id===id)))return bad(res,'Select at least two different registered candidates');
+        const start=Date.parse(b.startAt),end=Date.parse(b.endAt);
+        if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start||end-start>90*86400000)return bad(res,'Choose valid start/end times (max 90 days)');
+        db.eliminationPolls.push({id:crypto.randomUUID(),title:b.title.trim(),mode:b.mode,candidateIds:ids,startAt:new Date(start).toISOString(),endAt:new Date(end).toISOString(),paused:false,closed:false,revealed:false,votes:[]});
+        log('Elimination poll created',b.title.trim());await save();return send(res,200,{ok:true});
+      }
+      const p=db.eliminationPolls.find(x=>x.id===b.pollId);
+      if(!p)return bad(res,'Poll not found',404);
+      if(b.action==='delete'){
+        db.eliminationPolls=db.eliminationPolls.filter(x=>x.id!==p.id);
+      } else if(b.action==='pause'){
+        if(statusOf(p)!=='active')return bad(res,'Only an active poll can be paused');p.paused=true;
+      } else if(b.action==='resume'){
+        if(!p.paused||p.closed||Date.now()>=Date.parse(p.endAt))return bad(res,'Cannot resume this poll');p.paused=false;
+      } else if(b.action==='close'){
+        p.closed=true;p.paused=false;
+      } else if(b.action==='reveal'){
+        if(statusOf(p)!=='closed')return bad(res,'Close the poll before revealing results');p.revealed=!!b.revealed;
+      } else if(b.action==='schedule'){
+        if(p.votes.length||p.closed||Date.now()>=Date.parse(p.startAt))return bad(res,'Schedule can only be edited before voting starts');
+        const start=Date.parse(b.startAt),end=Date.parse(b.endAt);
+        if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start||end-start>90*86400000)return bad(res,'Invalid schedule');
+        p.startAt=new Date(start).toISOString();p.endAt=new Date(end).toISOString();
+      } else return bad(res,'Unknown action');
+      log('Elimination poll '+b.action,p.title);await save();return send(res,200,{ok:true});
+    }
+    return bad(res,'Unknown elimination request',404);
+  }
+
   if(route.startsWith('/api/economy/')){
     const e=economyStore(),m=memberSession(req);
     if(route==='/api/economy/state'&&req.method==='GET')return send(res,200,economyView(e,m,admin));
