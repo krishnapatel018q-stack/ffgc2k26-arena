@@ -464,6 +464,39 @@ async function api(req, res, url) {
       if(a.endAt-now<=120000)a.endAt=now+120000;
       await save();return send(res,200,{ok:true});
     }
+    house.rewardRequests ||= [];
+    if(route==='/api/auction/requests'&&req.method==='GET'){
+      if(!member&&!admin)return bad(res,'Login required',401);
+      const requests=admin?house.rewardRequests.map(r=>({...r,memberName:db.members.find(m=>m.id===r.memberId)?.name||'Member'})):house.rewardRequests.filter(r=>r.memberId===member.id);
+      return send(res,200,{requests});
+    }
+    if(route==='/api/auction/request'&&req.method==='POST'){
+      if(!member)return bad(res,'Member login required',401);
+      const item=house.inventory.find(x=>x.id===b.rewardId&&x.memberId===member.id);
+      if(!item||item.used||Date.parse(item.expiresAt)<=now)return bad(res,'Reward unavailable or expired');
+      if(house.rewardRequests.some(r=>r.rewardId===item.id&&r.status==='pending'))return bad(res,'Request already pending');
+      const targetMemberId=String(b.targetMemberId||'');
+      if(targetMemberId&&!db.members.some(m=>m.id===targetMemberId))return bad(res,'Invalid target member');
+      const note=String(b.note||'').trim().slice(0,500);
+      if(!note)return bad(res,'Describe how you want to use the reward');
+      house.rewardRequests.push({id:crypto.randomUUID(),rewardId:item.id,memberId:member.id,targetMemberId,note,status:'pending',createdAt:new Date(now).toISOString()});
+      await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/auction/request-admin'&&req.method==='POST'){
+      if(!admin)return bad(res,'Admin only',403);
+      const r=house.rewardRequests.find(x=>x.id===b.id);
+      if(!r||r.status!=='pending')return bad(res,'Request not pending');
+      if(!['approve','reject'].includes(b.action))return bad(res,'Invalid action');
+      const item=house.inventory.find(x=>x.id===r.rewardId);
+      if(!item)return bad(res,'Reward not found');
+      if(b.action==='approve'){
+        if(item.used||Date.parse(item.expiresAt)<=now)return bad(res,'Reward used or expired');
+        // Approval records redemption; admin applies game effects separately.
+        item.used=true;item.usedAt=new Date(now).toISOString();r.status='approved';
+      }else{r.status='rejected';r.reason=String(b.reason||'').slice(0,500)}
+      r.reviewedAt=new Date(now).toISOString();
+      await save();return send(res,200,{ok:true});
+    }
     if(route==='/api/auction/suggestions'&&req.method==='GET'){
       if(!admin)return bad(res,'Admin only',403);
       const templates=[
@@ -483,11 +516,23 @@ async function api(req, res, url) {
         if(!title||title.length>100||description.length>500||!Number.isFinite(startAt)||!Number.isFinite(endAt)||endAt<=startAt||endAt<=now||startAt>=house.cycleStart+(cycle+1)*cycleMs||endAt>house.cycleStart+(cycle+1)*cycleMs||!Number.isSafeInteger(startingBid)||startingBid<1||startingBid>1000||!Number.isSafeInteger(minIncrement)||minIncrement<1||minIncrement>1000)return bad(res,'Invalid auction details');
         if(house.auctions.filter(x=>x.cycle===cycle).length>=5)return bad(res,'Maximum 5 auctions per cycle');
         house.auctions.push({id:crypto.randomUUID(),title,description,rarity:['common','rare','epic','legendary'].includes(b.rarity)?b.rarity:'rare',startAt,endAt,startingBid,minIncrement,cycle,bids:[],closed:false});
+      }else if(b.action==='edit'){
+        const a=house.auctions.find(x=>x.id===b.id);
+        if(!a)return bad(res,'Auction not found',404);
+        if(a.closed||a.bids.length)return bad(res,'Auctions with bids or closed auctions cannot be edited');
+        const title=String(b.title||'').trim(),description=String(b.description||'').trim();
+        const startAt=Date.parse(b.startAt),endAt=Date.parse(b.endAt);
+        const startingBid=Number(b.startingBid),minIncrement=Number(b.minIncrement);
+        if(!title||title.length>100||description.length>500||!Number.isFinite(startAt)||!Number.isFinite(endAt)||endAt<=startAt||endAt<=now||endAt>house.cycleStart+(a.cycle+1)*cycleMs||!Number.isSafeInteger(startingBid)||startingBid<1||startingBid>1000||!Number.isSafeInteger(minIncrement)||minIncrement<1||minIncrement>1000)return bad(res,'Invalid auction details');
+        Object.assign(a,{title,description,startAt,endAt,startingBid,minIncrement,rarity:['common','rare','epic','legendary'].includes(b.rarity)?b.rarity:'rare'});
       }else if(b.action==='delete'){
-        const a=house.auctions.find(x=>x.id===b.id);if(!a||a.bids.length||a.closed)return bad(res,'Only auctions without bids can be deleted');house.auctions=house.auctions.filter(x=>x.id!==b.id);
+        const a=house.auctions.find(x=>x.id===b.id);
+        if(!a)return bad(res,'Auction not found',404);
+        if(a.bids.length||a.winnerId||house.inventory.some(x=>x.auctionId===a.id))return bad(res,'Auction has bids or awarded rewards; cannot permanently delete');
+        house.auctions=house.auctions.filter(x=>x.id!==b.id);
+        db.spotlight=db.spotlight.filter(x=>x.auctionId!==b.id);
       }else if(b.action==='enabled'){house.enabled=Boolean(b.enabled);
-      }else if(b.action==='useReward'){
-        const item=house.inventory.find(x=>x.id===b.id);if(!item||item.used||Date.parse(item.expiresAt)<=now)return bad(res,'Invalid or expired reward');item.used=true;item.usedAt=new Date().toISOString();
+
       }else return bad(res,'Unknown action');
       await save();return send(res,200,{ok:true});
     }
