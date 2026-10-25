@@ -1532,7 +1532,7 @@ const server = http.createServer((req, res) => {
     ? 'index.html'
     : u.pathname.slice(1);
 
-  if (!['index.html', 'app.js', 'style.css', 'auction.js', 'auction.css', 'arena4.css', 'chamber.js', 'chamber.css', 'economy.html', 'economy-admin.html', 'economy.css', 'economy.js'].includes(file)) {
+  if (!['index.html', 'app.js', 'style.css', 'auction.js', 'auction.css', 'arena4.css', 'chamber.js', 'chamber.css', 'economy.html', 'economy-admin.html', 'economy.css', 'economy.js', 'elimination.js', 'elimination.css'].includes(file)) {
     return bad(res, 'Not found', 404);
   }
 
