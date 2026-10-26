@@ -41,7 +41,6 @@ const initial = {
     ['Disha', 1935],
     ['Shreya', 1599],
     ['Vihan', 1459],
-    ['Kartik', 1270],
     ['Pratham', 1204],
     ['Viren', 1001],
     ['Batman', 597],
@@ -115,6 +114,42 @@ async function load() {
     db.chamber ||= {sessions:[],activeId:null}; db.teams ||= []; db.spotlight ||= []; db.supportMessages ||= []; db.auctionHouse ||= {cycleStart:Date.now(), auctions:[], inventory:[], enabled:true};
     for (const m of db.members) m.profile ||= {};
   }
+}
+
+// One-time eviction cleanup. Historical poll results and records are retained.
+async function applyKartikEviction() {
+  db.settings ||= {};
+  db.settings.evictedMemberNames ||= [];
+  if (db.settings.evictedMemberNames.includes('kartik')) return;
+  const removed = db.members.filter(m => m.name.trim().toLowerCase() === 'kartik');
+  if (!removed.length) {
+    db.settings.evictedMemberNames.push('kartik');
+    await save();
+    return;
+  }
+  const ids = new Set(removed.map(m => m.id));
+  db.members = db.members.filter(m => !ids.has(m.id));
+  for (const t of db.teams || []) {
+    t.members = (t.members || []).filter(id => !ids.has(id));
+    if (ids.has(t.captainId)) t.captainId = '';
+  }
+  db.spotlight = (db.spotlight || []).filter(x => !ids.has(x.memberId));
+  db.supportMessages = (db.supportMessages || []).filter(x => !ids.has(x.memberId));
+  if (db.chamber) {
+    for (const session of db.chamber.sessions || []) {
+      if (session.status !== 'complete' && session.members?.some(id => ids.has(id))) {
+        session.status = 'complete';
+        session.reason = 'Session closed following member eviction';
+        session.completedAt = Date.now();
+      }
+    }
+    if (db.chamber.sessions?.find(x => x.id === db.chamber.activeId)?.status === 'complete') db.chamber.activeId = null;
+  }
+  // Keep historical votes, purchases, and records for audit integrity.
+  // The removed member can no longer authenticate or participate in any module.
+  db.settings.evictedMemberNames.push('kartik');
+  await save();
+  console.log('Eviction applied: Kartik removed from active membership and access.');
 }
 
 async function save() {
@@ -1563,7 +1598,7 @@ setInterval(() => {
 
 // START SERVER AFTER DATABASE CONNECTION
 load()
-  .then(async () => {const previous=db.economy?.seedVersion||0;economyStore();if(previous<1)await save();})
+  .then(async () => {await applyKartikEviction();const previous=db.economy?.seedVersion||0;economyStore();if(previous<1)await save();})
   .then(() =>
     server.listen(PORT, () =>
       console.log(`FFGC2K26 running on port ${PORT}`)
