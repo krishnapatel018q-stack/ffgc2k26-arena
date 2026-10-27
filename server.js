@@ -493,7 +493,7 @@ async function api(req, res, url) {
     const acc=m?e.accounts[m.id]:null;
     if(route==='/api/economy/order'&&req.method==='POST'){
       if(!m)return bad(res,'Member only',403);
-      if(!econMarketOpen(e))return bad(res,'Market opens daily at 12:00 PM and closes at 12:00 AM IST');
+      if(!econMarketOpen(e))return bad(res,'Market opens daily at 8:00 AM and closes at 10:00 PM IST');
       const co=e.companies.find(x=>x.id===b.companyId&&!x.archived&&!x.frozen);
       const qty=econNum(b.quantity);
       if(!co||!qty||qty>1000||!['buy','sell'].includes(b.side))return bad(res,'Invalid trade');
@@ -1463,7 +1463,7 @@ function economyStore(){
   for(const m of db.members) if(!e.accounts[m.id])e.accounts[m.id]={cash:e.initialCash??2000,shares:{}};
   return e;
 }
-function econMarketOpen(e){const d=new Date();const ist=new Date(d.getTime()+330*60000);const hour=ist.getUTCHours();return e.marketOpen!==false&&hour>=12&&hour<24;}
+function econMarketOpen(e){const d=new Date();const ist=new Date(d.getTime()+330*60000);const hour=ist.getUTCHours();return e.marketOpen!==false&&hour>=8&&hour<22;}
 function econRecord(e,action,memberId,detail){e.history.unshift({id:crypto.randomUUID(),at:new Date().toISOString(),action,memberId,detail});if(e.history.length>2500)e.history.length=2500;}
 function econNum(x){const n=Number(x);return Number.isSafeInteger(n)&&n>=0&&n<=100000000?n:null;}
 function econNotify(e,memberId,message){e.notifications.unshift({id:crypto.randomUUID(),memberId,message,at:Date.now()});if(e.notifications.length>1500)e.notifications.length=1500;}
