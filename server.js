@@ -405,6 +405,13 @@ async function api(req, res, url) {
 
   const route = url.pathname;
   const admin = isAdmin(req);
+  // God Admin-only hard shutdown: all member API routes are denied server-side.
+  if (db.settings.siteMode === 'shutdown' && !admin) {
+    if (route === '/api/public' && req.method === 'GET') return send(res,200,{settings:{siteMode:'shutdown'},locked:true,leaderboard:[],tasks:[],announcements:[],polls:[],teams:[],spotlight:[],publicProfiles:[],admin:false});
+    if (route === '/api/login' && req.method === 'POST') { /* permit God Admin login below */ }
+    else return bad(res,'Arena temporarily closed by God Admin',503);
+  }
+
 
 
   // ELIMINATION ARENA: independent from existing polls and nominations.
@@ -1012,7 +1019,7 @@ async function api(req, res, url) {
   // WEBSITE SETTINGS
   if (route === '/api/settings' && req.method === 'POST') {
     if (
-      !['public', 'maintenance', 'private'].includes(b.siteMode)
+      !['public', 'maintenance', 'private', 'shutdown'].includes(b.siteMode)
     ) {
       return bad(res, 'Invalid mode');
     }
@@ -1563,11 +1570,20 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Shutdown is enforced for HTML, JS and CSS too; only the authenticated God Admin sees the site.
+  if (u.pathname === '/god-access') {
+    res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});
+    return res.end(fs.readFileSync(path.join(ROOT,'public','god-access.html')));
+  }
+  if (db.settings.siteMode === 'shutdown' && !isAdmin(req)) {
+    res.writeHead(503,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
+    return res.end(fs.readFileSync(path.join(ROOT,'public','shutdown.html')));
+  }
   const file = u.pathname === '/'
     ? 'index.html'
     : u.pathname.slice(1);
 
-  if (!['index.html', 'app.js', 'style.css', 'auction.js', 'auction.css', 'arena4.css', 'chamber.js', 'chamber.css', 'economy.html', 'economy-admin.html', 'economy.css', 'economy.js', 'elimination.js', 'elimination.css'].includes(file)) {
+  if (!['index.html', 'app.js', 'style.css', 'auction.js', 'auction.css', 'arena4.css', 'chamber.js', 'chamber.css', 'economy.html', 'economy-admin.html', 'economy.css', 'economy.js', 'elimination.js', 'elimination.css', 'royale.css', 'royale.js'].includes(file)) {
     return bad(res, 'Not found', 404);
   }
 
