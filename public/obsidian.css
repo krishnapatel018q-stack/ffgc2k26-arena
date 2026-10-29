@@ -99,3 +99,14 @@ html body.v5-body .v5-section.panel{background:linear-gradient(135deg,#20102b,#0
 html body.v5-body .v5-hero,html body.v5-body .v5-player,html body.v5-body .v5-tile{background:linear-gradient(135deg,#21102c,#0d0714)!important;border-color:#7335a0!important}
 html body.v5-body #spotlightSection:not(.v5-route-hidden){display:block!important}
 html body.v5-body #spotlightCards .spotlightDescription{white-space:pre-wrap;line-height:1.65;color:#e8d1f4}
+
+/* Hall of Spotlight appears FIRST on the homepage without navigation. */
+html body.v5-body #v5Home .ffgc-home-spotlight:not(.hidden) {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  margin: 0 0 24px !important;
+}
+html body.v5-body #v5Home .ffgc-home-spotlight.v5-route-hidden {
+  display: block !important;
+}

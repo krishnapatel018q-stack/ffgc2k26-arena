@@ -990,11 +990,16 @@
       key = "home";
     }
 
+    const scrollToHall = key === "spotlight";
+    if (scrollToHall) key = "home";
     currentRoute = key;
 
     for (const [routeKey, , , ids] of routes) {
       for (const id of ids) {
         const section = $(id);
+
+        // Hall of Spotlight belongs to the homepage, always visible there.
+        if (id === "spotlightSection") continue;
 
         if (section) {
           section.classList.toggle(
@@ -1052,10 +1057,11 @@
       );
     } catch {}
 
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth"
-    });
+    if (scrollToHall) {
+      $("spotlightSection")?.scrollIntoView({behavior:"smooth",block:"start"});
+    } else {
+      window.scrollTo({top:0,behavior:"smooth"});
+    }
   }
 
   function buildLayout() {
@@ -1282,6 +1288,15 @@
       }
 
       originalHero.classList.add("v5-original-hero");
+    }
+
+    // Show published Spotlight achievements immediately on website load.
+    // Move the existing element (do not clone it) so app.js keeps its data and handlers.
+    const spotlightHome = $("spotlightSection");
+    if (spotlightHome) {
+      spotlightHome.classList.remove("v5-route-hidden");
+      spotlightHome.classList.add("ffgc-home-spotlight");
+      home.insertBefore(spotlightHome, home.firstChild);
     }
 
     const sections = [
