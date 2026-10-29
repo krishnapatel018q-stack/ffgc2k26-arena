@@ -10,31 +10,65 @@
 <link rel="stylesheet" href="/royale.css">
 <link rel="stylesheet" href="/member5.css">
 <link rel="stylesheet" href="/royale6.css?v=6.0">
+<link rel="stylesheet" href="/auction.css">
+<link rel="stylesheet" href="/chamber.css">
+<link rel="stylesheet" href="/elimination.css">
 
 <style>
-#adminBtn {
-  display: inline-flex !important;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg,#a77bff,#6f45dc) !important;
-  color: white !important;
-  border: 1px solid #c4a4ff !important;
-  border-radius: 12px;
-  padding: 11px 16px;
-  font-weight: 800;
-  cursor: pointer;
+#ffgcQuickAccess {
+  position: fixed !important;
+  bottom: 16px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 2147483000 !important;
+  display: flex !important;
+  gap: 8px !important;
+  padding: 9px !important;
+  max-width: 96vw !important;
+  background: #10152b !important;
+  border: 1px solid #9675ff !important;
+  border-radius: 18px !important;
+  box-shadow: 0 8px 35px #000b !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
-#admin.admin-panel-open {
+#ffgcQuickAccess button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 12px !important;
+  border: 0 !important;
+  border-radius: 11px !important;
+  color: white !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+}
+
+#ffgcQuickAdmin {
+  background: linear-gradient(135deg,#a66cff,#6234cf) !important;
+}
+
+#ffgcQuickEconomy {
+  background: linear-gradient(135deg,#168d67,#07543d) !important;
+}
+
+#admin.ffgcAdminVisible {
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
 }
 
+body {
+  padding-bottom: 100px !important;
+}
+
 #economicEmpireOverlay {
   position: fixed;
   inset: 0;
-  z-index: 99999;
+  z-index: 2147483001;
   background: #08120f;
   display: none;
   flex-direction: column;
@@ -104,15 +138,14 @@ body.economic-empire-open {
       type="button"
       class="ghost"
       id="openEconomicEmpire"
-      style="padding:10px"
     >
       💰 Economic Empire
     </button>
 
     <button
-      id="adminBtn"
-      class="ghost"
       type="button"
+      class="ghost"
+      id="adminBtn"
     >
       👑 GOD ADMIN
     </button>
@@ -122,21 +155,29 @@ body.economic-empire-open {
 <main>
 
 <section class="hero">
-  <div class="eyebrow">✦ THE OFFICIAL COMPETITION PLATFORM</div>
+  <div class="eyebrow">
+    ✦ THE OFFICIAL COMPETITION PLATFORM
+  </div>
 
   <h1>THE OFFICIAL<br><em>ARENA.</em></h1>
 
-  <p>Every point matters. Every vote counts. Every rank is earned.</p>
+  <p>
+    Every point matters. Every vote counts.
+    Every rank is earned.
+  </p>
 
   <div class="heroActions">
-    <a class="primary" href="#leaderboard">Explore Leaderboard ↗</a>
-    <a class="secondary" href="#polls">Enter Voting Arena →</a>
+    <a class="primary" href="#leaderboard">
+      Explore Leaderboard ↗
+    </a>
+
+    <a class="secondary" href="#polls">
+      Enter Voting Arena →
+    </a>
   </div>
 
   <div class="stats" id="stats"></div>
 </section>
-
-<!-- SPOTLIGHT -->
 
 <section id="spotlightSection" class="panel hidden">
   <div class="sectionHeading">
@@ -152,8 +193,6 @@ body.economic-empire-open {
 <div id="lock" class="hidden lock"></div>
 
 <div id="publicContent">
-
-<!-- LEADERBOARD -->
 
 <section id="leaderboard" class="panel">
   <div class="sectionHeading">
@@ -183,8 +222,6 @@ body.economic-empire-open {
   </div>
 </section>
 
-<!-- TEAMS -->
-
 <section id="teams" class="panel">
   <div class="sectionHeading">
     <div>
@@ -195,8 +232,6 @@ body.economic-empire-open {
 
   <div id="teamCards" class="cards"></div>
 </section>
-
-<!-- TASKS -->
 
 <section id="tasks" class="panel">
   <div class="sectionHeading">
@@ -209,8 +244,6 @@ body.economic-empire-open {
   <div id="taskCards" class="cards"></div>
 </section>
 
-<!-- POLLS -->
-
 <section id="polls" class="panel">
   <div class="sectionHeading">
     <div>
@@ -221,8 +254,6 @@ body.economic-empire-open {
 
   <div id="pollCards" class="cards"></div>
 </section>
-
-<!-- ANNOUNCEMENTS -->
 
 <section id="announcements" class="panel">
   <div class="sectionHeading">
@@ -237,8 +268,6 @@ body.economic-empire-open {
 
 </div>
 
-<!-- DECISION CHAMBER -->
-
 <section id="decisionChamber" class="panel">
   <div class="sectionHeading">
     <div>
@@ -250,15 +279,14 @@ body.economic-empire-open {
   </div>
 
   <p class="muted">
-    Only invited members may enter. God Admin can monitor chamber messages.
+    Only invited members may enter.
+    God Admin can monitor chamber messages.
     Others see the names and timer only.
   </p>
 
   <div id="chamberPublic"></div>
   <div id="chamberPrivate"></div>
 </section>
-
-<!-- AUCTION HOUSE -->
 
 <section id="auctionHouse" class="panel">
   <div class="sectionHeading">
@@ -286,8 +314,6 @@ body.economic-empire-open {
   <div id="auctionMyRequests"></div>
 </section>
 
-<!-- ELIMINATION -->
-
 <section id="eliminationArena" class="panel">
   <div class="sectionHeading">
     <div>
@@ -304,8 +330,6 @@ body.economic-empire-open {
 
   <div id="eliminationPublicList"></div>
 </section>
-
-<!-- MEMBER PROFILE -->
 
 <section id="myProfile" class="panel">
   <div class="sectionHeading">
@@ -329,8 +353,6 @@ body.economic-empire-open {
 
   <div id="memberProfileView" class="hidden"></div>
 </section>
-
-<!-- MEMBER SUPPORT -->
 
 <section id="supportMember" class="panel hidden">
   <div class="sectionHeading">
@@ -359,7 +381,7 @@ body.economic-empire-open {
   </form>
 </section>
 
-<!-- GOD ADMIN PANEL -->
+<!-- GOD ADMIN CONTROL CENTER -->
 
 <section id="admin" class="panel hidden">
 
@@ -369,10 +391,10 @@ body.economic-empire-open {
       <h2>👑 Control Center</h2>
     </div>
 
-    <button class="ghost" id="logout">Log out</button>
+    <button class="ghost" id="logout">
+      Log out
+    </button>
   </div>
-
-  <!-- ADMIN LOGIN -->
 
   <div id="loginBox">
     <form id="loginForm" class="form">
@@ -395,11 +417,7 @@ body.economic-empire-open {
     </form>
   </div>
 
-  <!-- ADMIN DASHBOARD -->
-
   <div id="dashboard" class="hidden">
-
-    <!-- ECONOMIC EMPIRE ADMIN -->
 
     <div class="adminCard" style="margin-bottom:18px">
       <h3>💰 Economic Empire</h3>
@@ -417,8 +435,6 @@ body.economic-empire-open {
 
     <div class="adminGrid">
 
-      <!-- WEBSITE MODE -->
-
       <div class="adminCard">
         <h3>Website Access</h3>
 
@@ -428,10 +444,10 @@ body.economic-empire-open {
           <option value="private">Private / Locked</option>
         </select>
 
-        <button id="saveMode">Apply Website Mode</button>
+        <button id="saveMode">
+          Apply Website Mode
+        </button>
       </div>
-
-      <!-- ADD MEMBER -->
 
       <div class="adminCard">
         <h3>Add Member</h3>
@@ -454,8 +470,6 @@ body.economic-empire-open {
         </form>
       </div>
 
-      <!-- ANNOUNCEMENT -->
-
       <div class="adminCard">
         <h3>Publish Announcement</h3>
 
@@ -476,8 +490,6 @@ body.economic-empire-open {
           <button>Publish</button>
         </form>
       </div>
-
-      <!-- TASK -->
 
       <div class="adminCard">
         <h3>Publish / Update Task</h3>
@@ -514,8 +526,6 @@ body.economic-empire-open {
           <button>Save Task</button>
         </form>
       </div>
-
-      <!-- POLL -->
 
       <div class="adminCard">
         <h3>Create Poll</h3>
@@ -554,7 +564,6 @@ body.economic-empire-open {
               name="resultsVisible"
               type="checkbox"
             >
-
             Show results while open
           </label>
 
@@ -564,12 +573,8 @@ body.economic-empire-open {
 
     </div>
 
-    <!-- ANNOUNCEMENT CONTROLS -->
-
     <h3 class="adminSub">📢 Announcement Controls</h3>
     <div id="adminAnnouncements" class="adminList"></div>
-
-    <!-- SUPPORT INBOX -->
 
     <h3 class="adminSub">
       🛡️ FFGC2K26 SUPPORT — PRIVATE INBOX
@@ -587,7 +592,6 @@ body.economic-empire-open {
 
       <div id="supportAdminChat" class="hidden">
         <h3 id="supportAdminTitle"></h3>
-
         <div
           id="supportAdminMessages"
           class="supportChat"
@@ -606,8 +610,6 @@ body.economic-empire-open {
       </div>
     </div>
 
-    <!-- MEMBER PROFILES -->
-
     <h3 class="adminSub">
       👤 Member Legacy &amp; Profile Control
     </h3>
@@ -620,8 +622,6 @@ body.economic-empire-open {
 
       <div id="profileEditor"></div>
     </div>
-
-    <!-- TEAM CONTROL -->
 
     <h3 class="adminSub">⚔️ Team Control Center</h3>
 
@@ -638,8 +638,6 @@ body.economic-empire-open {
     </div>
 
     <div id="teamAdminList" class="adminList"></div>
-
-    <!-- SPOTLIGHT -->
 
     <h3 class="adminSub">🌟 Hall of Spotlight</h3>
 
@@ -669,7 +667,6 @@ body.economic-empire-open {
 
         <label>
           Theme
-
           <select name="theme">
             <option value="gold">Golden Champion</option>
             <option value="purple">Purple Legend</option>
@@ -687,12 +684,7 @@ body.economic-empire-open {
       </form>
     </div>
 
-    <div
-      id="spotlightAdminList"
-      class="adminList"
-    ></div>
-
-    <!-- DECISION CHAMBER ADMIN -->
+    <div id="spotlightAdminList" class="adminList"></div>
 
     <h3 class="adminSub">
       ⚖️ Decision Chamber Control
@@ -703,8 +695,6 @@ body.economic-empire-open {
       id="chamberAdmin"
     ></div>
 
-    <!-- AUCTION ADMIN -->
-
     <h3 class="adminSub">
       🔨 Auction House Control
     </h3>
@@ -712,7 +702,6 @@ body.economic-empire-open {
     <div class="adminCard">
 
       <form id="auctionCreate" class="form">
-
         <input
           name="title"
           placeholder="Reward title"
@@ -728,7 +717,6 @@ body.economic-empire-open {
 
         <label>
           Rarity
-
           <select name="rarity">
             <option>common</option>
             <option selected>rare</option>
@@ -757,7 +745,6 @@ body.economic-empire-open {
 
         <label>
           Starting bid
-
           <input
             type="number"
             name="startingBid"
@@ -770,7 +757,6 @@ body.economic-empire-open {
 
         <label>
           Minimum increment
-
           <input
             type="number"
             name="minIncrement"
@@ -809,16 +795,8 @@ body.economic-empire-open {
 
     </div>
 
-    <!-- MEMBER POINTS -->
-
     <h3 class="adminSub">Members &amp; Points</h3>
-
-    <div
-      id="adminMembers"
-      class="adminList"
-    ></div>
-
-    <!-- ELIMINATION ADMIN -->
+    <div id="adminMembers" class="adminList"></div>
 
     <h3 class="adminSub">
       🔴 Elimination Poll Control
@@ -833,16 +811,8 @@ body.economic-empire-open {
       </p>
     </div>
 
-    <!-- POLL ADMIN -->
-
     <h3 class="adminSub">Poll Controls</h3>
-
-    <div
-      id="adminPolls"
-      class="adminList"
-    ></div>
-
-    <!-- NOMINATION ADMIN -->
+    <div id="adminPolls" class="adminList"></div>
 
     <h3 class="adminSub">
       👑 Nomination Control Center
@@ -858,23 +828,11 @@ body.economic-empire-open {
       class="adminList"
     ></div>
 
-    <!-- TASK ADMIN -->
-
     <h3 class="adminSub">Task Controls</h3>
-
-    <div
-      id="adminTasks"
-      class="adminList"
-    ></div>
-
-    <!-- HISTORY -->
+    <div id="adminTasks" class="adminList"></div>
 
     <h3 class="adminSub">Activity History</h3>
-
-    <div
-      id="history"
-      class="adminList"
-    ></div>
+    <div id="history" class="adminList"></div>
 
   </div>
 </section>
@@ -888,19 +846,19 @@ body.economic-empire-open {
 
 <div id="toast" role="status"></div>
 
-<!-- MAIN APPLICATION -->
+<!-- FLOATING QUICK ACCESS -->
 
-<link rel="stylesheet" href="/auction.css">
+<div id="ffgcQuickAccess">
+  <button type="button" id="ffgcQuickAdmin">
+    👑 GOD ADMIN
+  </button>
 
-<script src="/app.js"></script>
-<script src="/auction.js"></script>
+  <button type="button" id="ffgcQuickEconomy">
+    💰 ECONOMIC EMPIRE
+  </button>
+</div>
 
-<!-- DECISION CHAMBER -->
-
-<link rel="stylesheet" href="/chamber.css">
-<script src="/chamber.js"></script>
-
-<!-- ECONOMIC EMPIRE -->
+<!-- ECONOMIC EMPIRE OVERLAY -->
 
 <div
   id="economicEmpireOverlay"
@@ -926,91 +884,90 @@ body.economic-empire-open {
   ></iframe>
 </div>
 
+<!-- MAIN APPLICATION SCRIPTS -->
+
+<script src="/app.js"></script>
+<script src="/auction.js"></script>
+<script src="/chamber.js"></script>
+<script src="/elimination.js?v=20261025-stability3"></script>
+<script src="/royale.js" defer></script>
+<script src="/member5.js?v=6.1" defer></script>
+
+<!-- QUICK ACCESS CONTROLS -->
+
 <script>
-(() => {
-  const open = document.getElementById('openEconomicEmpire');
-  const overlay = document.getElementById('economicEmpireOverlay');
-  const close = document.getElementById('economicEmpireClose');
-  const frame = document.getElementById('economicEmpireFrame');
+(function () {
+  const adminPanel = document.getElementById('admin');
 
-  if (!open || !overlay || !close || !frame) return;
+  function openAdmin() {
+    if (!adminPanel) return;
 
-  function show() {
+    adminPanel.classList.remove('hidden');
+    adminPanel.classList.add('ffgcAdminVisible');
+
+    adminPanel.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    });
+  }
+
+  document.getElementById('ffgcQuickAdmin')
+    .addEventListener('click', openAdmin);
+
+  document.getElementById('adminBtn')
+    .addEventListener('click', openAdmin);
+
+  if (location.hash === '#admin') {
+    openAdmin();
+  }
+
+  const overlay =
+    document.getElementById('economicEmpireOverlay');
+
+  const frame =
+    document.getElementById('economicEmpireFrame');
+
+  const close =
+    document.getElementById('economicEmpireClose');
+
+  function openEconomy() {
     if (!frame.getAttribute('src')) {
       frame.setAttribute('src', '/economy.html');
     }
 
     overlay.classList.add('is-open');
     document.body.classList.add('economic-empire-open');
-    close.focus();
   }
 
-  function hide() {
+  function closeEconomy() {
     overlay.classList.remove('is-open');
     document.body.classList.remove('economic-empire-open');
-    open.focus();
   }
 
-  open.addEventListener('click', show);
-  close.addEventListener('click', hide);
+  document.getElementById('ffgcQuickEconomy')
+    .addEventListener('click', openEconomy);
 
-  document.addEventListener('keydown', e => {
-    if (
-      e.key === 'Escape' &&
-      overlay.classList.contains('is-open')
-    ) {
-      hide();
+  document.getElementById('openEconomicEmpire')
+    .addEventListener('click', openEconomy);
+
+  close.addEventListener('click', closeEconomy);
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+      closeEconomy();
     }
   });
 
-  window.addEventListener('message', e => {
+  window.addEventListener('message', function (event) {
     if (
-      e.origin === location.origin &&
-      e.data === 'ffgc-economy-close'
+      event.origin === location.origin &&
+      event.data === 'ffgc-economy-close'
     ) {
-      hide();
+      closeEconomy();
     }
   });
-})();
-</script>
-
-<!-- ELIMINATION ARENA -->
-
-<link rel="stylesheet" href="/elimination.css">
-
-<script src="/elimination.js?v=20261025-stability3"></script>
-
-<!-- ROYALE ARENA -->
-
-<script src="/royale.js" defer></script>
-<script src="/member5.js?v=6.1" defer></script>
-
-<!-- GOD ADMIN PANEL BUTTON FIX -->
-
-<script>
-(() => {
-  const button = document.getElementById('adminBtn');
-  const panel = document.getElementById('admin');
-
-  if (!button || !panel) return;
-
-  function showAdmin() {
-    panel.classList.remove('hidden');
-    panel.classList.add('admin-panel-open');
-
-    panel.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start'
-    });
-  }
-
-  button.addEventListener('click', showAdmin);
-
-  if (location.hash === '#admin') {
-    showAdmin();
-  }
 })();
 </script>
 
 </body>
-  </html>
+          </html>
