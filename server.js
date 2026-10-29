@@ -1560,6 +1560,7 @@ const allowedFiles = new Set([
   'member5.js',
   'member5.css',
   'royale6.css',
+  'obsidian.css',
 
   // Auction House
   'auction.js',
