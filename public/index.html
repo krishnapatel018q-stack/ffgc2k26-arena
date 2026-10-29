@@ -1,567 +1,883 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>FFGC2K26 | The Official Arena</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FFGC2K26 | The Official Arena</title>
 
-  <!-- Original styles -->
-  <link rel="stylesheet" href="/style.css">
-  <link rel="stylesheet" href="/arena4.css">
-  <link rel="stylesheet" href="/royale.css">
-  <link rel="stylesheet" href="/member5.css">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/arena4.css">
+<link rel="stylesheet" href="/royale.css">
+<link rel="stylesheet" href="/member5.css">
+<link rel="stylesheet" href="/royale6.css?v=6.0">
 
-  <!-- New Royale Arena 6.0 design -->
-  <link rel="stylesheet" href="/royale6.css?v=6.0">
+<style>
+#adminBtn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg,#a77bff,#6f45dc) !important;
+  color: white !important;
+  border: 1px solid #c4a4ff !important;
+  border-radius: 12px;
+  padding: 11px 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+#admin.admin-panel-open {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+#economicEmpireOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: #08120f;
+  display: none;
+  flex-direction: column;
+}
+
+#economicEmpireOverlay.is-open {
+  display: flex;
+}
+
+#economicEmpireToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #0d1b15;
+  border-bottom: 1px solid #b9994d;
+  color: #f7e5aa;
+  font: 600 15px system-ui,sans-serif;
+}
+
+#economicEmpireClose {
+  background: #e7c773;
+  color: #111;
+  border: 0;
+  border-radius: 9px;
+  padding: 10px 15px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+#economicEmpireFrame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #07120c;
+}
+
+body.economic-empire-open {
+  overflow: hidden;
+}
+
+@media(max-width:600px) {
+  #economicEmpireToolbar {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  #economicEmpireClose {
+    padding: 9px 12px;
+  }
+}
+</style>
 </head>
 
 <body>
 
 <header>
   <a class="logo" href="/">✦ FFGC<span>2K26</span></a>
+
   <nav>
     <a href="#leaderboard">Leaderboard</a>
     <a href="#tasks">Challenges</a>
     <a href="#polls">Voting Arena</a>
-    <button type="button" class="ghost" id="openEconomicEmpire" style="padding:10px">
+
+    <button
+      type="button"
+      class="ghost"
+      id="openEconomicEmpire"
+      style="padding:10px"
+    >
       💰 Economic Empire
     </button>
-    <button id="adminBtn" class="ghost">Admin</button>
+
+    <button
+      id="adminBtn"
+      class="ghost"
+      type="button"
+    >
+      👑 GOD ADMIN
+    </button>
   </nav>
 </header>
 
 <main>
 
-  <!-- HERO -->
-  <section class="hero">
-    <div class="eyebrow">✦ THE OFFICIAL COMPETITION PLATFORM</div>
-    <h1>THE OFFICIAL<br><em>ARENA.</em></h1>
-    <p>Every point matters. Every vote counts. Every rank is earned.</p>
+<section class="hero">
+  <div class="eyebrow">✦ THE OFFICIAL COMPETITION PLATFORM</div>
 
-    <div class="heroActions">
-      <a class="primary" href="#leaderboard">Explore Leaderboard ↗</a>
-      <a class="secondary" href="#polls">Enter Voting Arena →</a>
-    </div>
+  <h1>THE OFFICIAL<br><em>ARENA.</em></h1>
 
-    <div class="stats" id="stats"></div>
-  </section>
+  <p>Every point matters. Every vote counts. Every rank is earned.</p>
 
-  <!-- SPOTLIGHT -->
-  <section id="spotlightSection" class="panel hidden">
-    <div class="sectionHeading">
-      <div>
-        <small>✦ THE HALL OF SPOTLIGHT</small>
-        <h2>Featured Legends</h2>
-      </div>
-    </div>
-    <div id="spotlightCards" class="spotlightTrack"></div>
-  </section>
-
-  <div id="lock" class="hidden lock"></div>
-
-  <div id="publicContent">
-
-    <!-- LEADERBOARD -->
-    <section id="leaderboard" class="panel">
-      <div class="sectionHeading">
-        <div>
-          <small>01 / THE RANKINGS</small>
-          <h2>Live Leaderboard</h2>
-        </div>
-        <span class="badge">● LIVE STANDINGS</span>
-      </div>
-
-      <div id="podium" class="podium"></div>
-
-      <div class="tableWrap">
-        <table>
-          <thead>
-            <tr>
-              <th>RANK</th>
-              <th>COMPETITOR</th>
-              <th>TOTAL POINTS</th>
-              <th>STATUS</th>
-            </tr>
-          </thead>
-          <tbody id="leaderRows"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- TEAMS -->
-    <section id="teams" class="panel">
-      <div class="sectionHeading">
-        <div>
-          <small>02 / TEAM BATTLES</small>
-          <h2>Team Leaderboard</h2>
-        </div>
-      </div>
-      <div id="teamCards" class="cards"></div>
-    </section>
-
-    <!-- TASKS -->
-    <section id="tasks" class="panel">
-      <div class="sectionHeading">
-        <div>
-          <small>03 / THE CHALLENGES</small>
-          <h2>Current Tasks</h2>
-        </div>
-      </div>
-      <div id="taskCards" class="cards"></div>
-    </section>
-
-    <!-- POLLS -->
-    <section id="polls" class="panel">
-      <div class="sectionHeading">
-        <div>
-          <small>04 / MAKE YOUR VOICE COUNT</small>
-          <h2>Voting Arena</h2>
-        </div>
-      </div>
-      <div id="pollCards" class="cards"></div>
-    </section>
-
-    <!-- ANNOUNCEMENTS -->
-    <section id="announcements" class="panel">
-      <div class="sectionHeading">
-        <div>
-          <small>05 / OFFICIAL UPDATES</small>
-          <h2>Announcements</h2>
-        </div>
-      </div>
-      <div id="newsCards" class="cards"></div>
-    </section>
-
+  <div class="heroActions">
+    <a class="primary" href="#leaderboard">Explore Leaderboard ↗</a>
+    <a class="secondary" href="#polls">Enter Voting Arena →</a>
   </div>
 
-  <!-- DECISION CHAMBER -->
-  <section id="decisionChamber" class="panel">
-    <div class="sectionHeading">
-      <div>
-        <small>⚖️ PRIVATE NEGOTIATION</small>
-        <h2>Decision Chamber</h2>
-      </div>
-      <span class="badge">OFFICIAL NOMINATIONS</span>
+  <div class="stats" id="stats"></div>
+</section>
+
+<!-- SPOTLIGHT -->
+
+<section id="spotlightSection" class="panel hidden">
+  <div class="sectionHeading">
+    <div>
+      <small>✦ THE HALL OF SPOTLIGHT</small>
+      <h2>Featured Legends</h2>
+    </div>
+  </div>
+
+  <div id="spotlightCards" class="spotlightTrack"></div>
+</section>
+
+<div id="lock" class="hidden lock"></div>
+
+<div id="publicContent">
+
+<!-- LEADERBOARD -->
+
+<section id="leaderboard" class="panel">
+  <div class="sectionHeading">
+    <div>
+      <small>01 / THE RANKINGS</small>
+      <h2>Live Leaderboard</h2>
     </div>
 
-    <p class="muted">
-      Only invited members may enter. God Admin can monitor chamber messages.
-      Others see the names and timer only.
-    </p>
+    <span class="badge">● LIVE STANDINGS</span>
+  </div>
 
-    <div id="chamberPublic"></div>
-    <div id="chamberPrivate"></div>
-  </section>
+  <div id="podium" class="podium"></div>
 
-  <!-- AUCTION HOUSE -->
-  <section id="auctionHouse" class="panel">
-    <div class="sectionHeading">
-      <div>
-        <small>✦ COINS / LIVE BIDDING</small>
-        <h2>🔨 Auction House</h2>
-      </div>
-      <span class="badge">LIVE MARKET</span>
+  <div class="tableWrap">
+    <table>
+      <thead>
+        <tr>
+          <th>RANK</th>
+          <th>COMPETITOR</th>
+          <th>TOTAL POINTS</th>
+          <th>STATUS</th>
+        </tr>
+      </thead>
+
+      <tbody id="leaderRows"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- TEAMS -->
+
+<section id="teams" class="panel">
+  <div class="sectionHeading">
+    <div>
+      <small>02 / TEAM BATTLES</small>
+      <h2>Team Leaderboard</h2>
+    </div>
+  </div>
+
+  <div id="teamCards" class="cards"></div>
+</section>
+
+<!-- TASKS -->
+
+<section id="tasks" class="panel">
+  <div class="sectionHeading">
+    <div>
+      <small>03 / THE CHALLENGES</small>
+      <h2>Current Tasks</h2>
+    </div>
+  </div>
+
+  <div id="taskCards" class="cards"></div>
+</section>
+
+<!-- POLLS -->
+
+<section id="polls" class="panel">
+  <div class="sectionHeading">
+    <div>
+      <small>04 / MAKE YOUR VOICE COUNT</small>
+      <h2>Voting Arena</h2>
+    </div>
+  </div>
+
+  <div id="pollCards" class="cards"></div>
+</section>
+
+<!-- ANNOUNCEMENTS -->
+
+<section id="announcements" class="panel">
+  <div class="sectionHeading">
+    <div>
+      <small>05 / OFFICIAL UPDATES</small>
+      <h2>Announcements</h2>
+    </div>
+  </div>
+
+  <div id="newsCards" class="cards"></div>
+</section>
+
+</div>
+
+<!-- DECISION CHAMBER -->
+
+<section id="decisionChamber" class="panel">
+  <div class="sectionHeading">
+    <div>
+      <small>⚖️ PRIVATE NEGOTIATION</small>
+      <h2>Decision Chamber</h2>
     </div>
 
-    <p class="muted">
-      Each 10-day cycle grants 1,000 coins. Highest bids temporarily lock coins.
-      Rewards are subject to official rules.
-    </p>
+    <span class="badge">OFFICIAL NOMINATIONS</span>
+  </div>
 
-    <div id="auctionWallet"></div>
-    <div id="auctionCards" class="cards"></div>
+  <p class="muted">
+    Only invited members may enter. God Admin can monitor chamber messages.
+    Others see the names and timer only.
+  </p>
 
-    <h3>🎁 My Rewards</h3>
-    <div id="auctionMyRewards" class="cards"></div>
+  <div id="chamberPublic"></div>
+  <div id="chamberPrivate"></div>
+</section>
 
-    <h3>📜 My Requests</h3>
-    <div id="auctionMyRequests"></div>
-  </section>
+<!-- AUCTION HOUSE -->
 
-  <!-- ELIMINATION -->
-  <section id="eliminationArena" class="panel">
-    <div class="sectionHeading">
-      <div>
-        <small>⚔️ OFFICIAL ELIMINATION</small>
-        <h2>Elimination Arena</h2>
-      </div>
+<section id="auctionHouse" class="panel">
+  <div class="sectionHeading">
+    <div>
+      <small>✦ COINS / LIVE BIDDING</small>
+      <h2>🔨 Auction House</h2>
     </div>
 
-    <p class="muted">
-      Vote with your correct private member ID.
-      Every registered member may vote once.
-      Self-voting is not allowed.
-    </p>
+    <span class="badge">LIVE MARKET</span>
+  </div>
 
-    <div id="eliminationPublicList"></div>
-  </section>
+  <p class="muted">
+    Each 10-day cycle grants 1,000 coins.
+    Highest bids temporarily lock coins.
+    Rewards are subject to official rules.
+  </p>
 
-  <!-- MEMBER PROFILE -->
-  <section id="myProfile" class="panel">
-    <div class="sectionHeading">
-      <div>
-        <small>MEMBER ACCESS / PRIVATE</small>
-        <h2>My Profile</h2>
-      </div>
+  <div id="auctionWallet"></div>
+  <div id="auctionCards" class="cards"></div>
+
+  <h3>🎁 My Rewards</h3>
+  <div id="auctionMyRewards" class="cards"></div>
+
+  <h3>📜 My Requests</h3>
+  <div id="auctionMyRequests"></div>
+</section>
+
+<!-- ELIMINATION -->
+
+<section id="eliminationArena" class="panel">
+  <div class="sectionHeading">
+    <div>
+      <small>⚔️ OFFICIAL ELIMINATION</small>
+      <h2>Elimination Arena</h2>
+    </div>
+  </div>
+
+  <p class="muted">
+    Vote with your correct private member ID.
+    Every registered member may vote once.
+    Self-voting is not allowed.
+  </p>
+
+  <div id="eliminationPublicList"></div>
+</section>
+
+<!-- MEMBER PROFILE -->
+
+<section id="myProfile" class="panel">
+  <div class="sectionHeading">
+    <div>
+      <small>MEMBER ACCESS / PRIVATE</small>
+      <h2>My Profile</h2>
+    </div>
+  </div>
+
+  <form id="memberLoginForm" class="form">
+    <input
+      name="code"
+      type="password"
+      placeholder="Your existing private member ID"
+      required
+      autocomplete="off"
+    >
+
+    <button>Unlock My Profile</button>
+  </form>
+
+  <div id="memberProfileView" class="hidden"></div>
+</section>
+
+<!-- MEMBER SUPPORT -->
+
+<section id="supportMember" class="panel hidden">
+  <div class="sectionHeading">
+    <div>
+      <small>PRIVATE MEMBER ASSISTANCE</small>
+      <h2>🛡️ FFGC2K26 SUPPORT</h2>
+    </div>
+  </div>
+
+  <p class="muted">
+    Only you and Support can see this chat.
+    Each message expires after 24 hours.
+  </p>
+
+  <div id="supportMemberMessages" class="supportChat"></div>
+
+  <form id="supportMemberForm" class="form">
+    <textarea
+      name="text"
+      maxlength="1500"
+      placeholder="Type your message to Support..."
+      required
+    ></textarea>
+
+    <button>Send to Support ↗</button>
+  </form>
+</section>
+
+<!-- GOD ADMIN PANEL -->
+
+<section id="admin" class="panel hidden">
+
+  <div class="sectionHeading">
+    <div>
+      <small>PRIVATE / AUTHORIZED ACCESS</small>
+      <h2>👑 Control Center</h2>
     </div>
 
-    <form id="memberLoginForm" class="form">
+    <button class="ghost" id="logout">Log out</button>
+  </div>
+
+  <!-- ADMIN LOGIN -->
+
+  <div id="loginBox">
+    <form id="loginForm" class="form">
       <input
-        name="code"
-        type="password"
-        placeholder="Your existing private member ID"
+        name="username"
+        placeholder="Admin username"
         required
-        autocomplete="off"
+        autocomplete="username"
       >
-      <button>Unlock My Profile</button>
-    </form>
 
-    <div id="memberProfileView" class="hidden"></div>
-  </section>
-
-  <!-- MEMBER SUPPORT -->
-  <section id="supportMember" class="panel hidden">
-    <div class="sectionHeading">
-      <div>
-        <small>PRIVATE MEMBER ASSISTANCE</small>
-        <h2>🛡️ FFGC2K26 SUPPORT</h2>
-      </div>
-    </div>
-
-    <p class="muted">
-      Only you and Support can see this chat.
-      Each message expires after 24 hours.
-    </p>
-
-    <div id="supportMemberMessages" class="supportChat"></div>
-
-    <form id="supportMemberForm" class="form">
-      <textarea
-        name="text"
-        maxlength="1500"
-        placeholder="Type your message to Support..."
+      <input
+        name="password"
+        type="password"
+        placeholder="Admin password"
         required
-      ></textarea>
-      <button>Send to Support ↗</button>
+        autocomplete="current-password"
+      >
+
+      <button class="primary">Secure Login</button>
     </form>
-  </section>
+  </div>
 
-  <!-- GOD ADMIN PANEL -->
-  <section id="admin" class="panel hidden">
+  <!-- ADMIN DASHBOARD -->
 
-    <div class="sectionHeading">
-      <div>
-        <small>PRIVATE / AUTHORIZED ACCESS</small>
-        <h2>Control Center</h2>
-      </div>
-      <button class="ghost" id="logout">Log out</button>
+  <div id="dashboard" class="hidden">
+
+    <!-- ECONOMIC EMPIRE ADMIN -->
+
+    <div class="adminCard" style="margin-bottom:18px">
+      <h3>💰 Economic Empire</h3>
+
+      <p>Separate economy control dashboard</p>
+
+      <a
+        class="primary"
+        href="/economy-admin.html"
+        style="display:inline-block;padding:12px"
+      >
+        👑 Open Economic Empire Control ↗
+      </a>
     </div>
 
-    <div id="loginBox">
-      <form id="loginForm" class="form">
-        <input name="username" placeholder="Admin username" required autocomplete="username">
-        <input name="password" type="password" placeholder="Admin password" required autocomplete="current-password">
-        <button class="primary">Secure Login</button>
+    <div class="adminGrid">
+
+      <!-- WEBSITE MODE -->
+
+      <div class="adminCard">
+        <h3>Website Access</h3>
+
+        <select id="siteMode">
+          <option value="public">Public / Online</option>
+          <option value="maintenance">Maintenance Mode</option>
+          <option value="private">Private / Locked</option>
+        </select>
+
+        <button id="saveMode">Apply Website Mode</button>
+      </div>
+
+      <!-- ADD MEMBER -->
+
+      <div class="adminCard">
+        <h3>Add Member</h3>
+
+        <form id="memberForm" class="form">
+          <input
+            name="name"
+            placeholder="Member name"
+            required
+          >
+
+          <input
+            name="points"
+            type="number"
+            min="0"
+            placeholder="Starting points (0)"
+          >
+
+          <button>Add Member</button>
+        </form>
+      </div>
+
+      <!-- ANNOUNCEMENT -->
+
+      <div class="adminCard">
+        <h3>Publish Announcement</h3>
+
+        <form id="newsForm" class="form">
+          <input
+            name="title"
+            placeholder="Headline"
+            required
+          >
+
+          <textarea
+            name="body"
+            placeholder="Announcement (up to 20,000 characters)"
+            maxlength="20000"
+            required
+          ></textarea>
+
+          <button>Publish</button>
+        </form>
+      </div>
+
+      <!-- TASK -->
+
+      <div class="adminCard">
+        <h3>Publish / Update Task</h3>
+
+        <form id="taskForm" class="form">
+          <input
+            name="title"
+            placeholder="Task title"
+            required
+          >
+
+          <textarea
+            name="description"
+            placeholder="Task instructions"
+            required
+          ></textarea>
+
+          <input
+            name="reward"
+            placeholder="Reward (e.g. 500 points)"
+          >
+
+          <input
+            name="deadline"
+            placeholder="Deadline (e.g. Tonight 10 PM)"
+          >
+
+          <select name="status">
+            <option value="active">Active</option>
+            <option value="upcoming">Upcoming</option>
+            <option value="closed">Closed</option>
+          </select>
+
+          <button>Save Task</button>
+        </form>
+      </div>
+
+      <!-- POLL -->
+
+      <div class="adminCard">
+        <h3>Create Poll</h3>
+
+        <form id="pollForm" class="form">
+          <input
+            name="title"
+            placeholder="Poll question / title"
+            required
+          >
+
+          <select name="type" id="pollType">
+            <option value="normal">Normal Poll</option>
+            <option value="nomination">Nomination Poll</option>
+          </select>
+
+          <textarea
+            name="choices"
+            placeholder="Normal poll options, one per line"
+          ></textarea>
+
+          <label>
+            Selections allowed per voter
+
+            <input
+              name="selectCount"
+              type="number"
+              min="1"
+              value="1"
+              required
+            >
+          </label>
+
+          <label class="check">
+            <input
+              name="resultsVisible"
+              type="checkbox"
+            >
+
+            Show results while open
+          </label>
+
+          <button>Create Draft Poll</button>
+        </form>
+      </div>
+
+    </div>
+
+    <!-- ANNOUNCEMENT CONTROLS -->
+
+    <h3 class="adminSub">📢 Announcement Controls</h3>
+    <div id="adminAnnouncements" class="adminList"></div>
+
+    <!-- SUPPORT INBOX -->
+
+    <h3 class="adminSub">
+      🛡️ FFGC2K26 SUPPORT — PRIVATE INBOX
+    </h3>
+
+    <div class="adminCard">
+      <button
+        id="supportInboxRefresh"
+        type="button"
+      >
+        Refresh Inbox
+      </button>
+
+      <div id="supportInbox"></div>
+
+      <div id="supportAdminChat" class="hidden">
+        <h3 id="supportAdminTitle"></h3>
+
+        <div
+          id="supportAdminMessages"
+          class="supportChat"
+        ></div>
+
+        <form id="supportAdminForm" class="form">
+          <textarea
+            name="text"
+            maxlength="1500"
+            placeholder="Reply as FFGC2K26 SUPPORT"
+            required
+          ></textarea>
+
+          <button>Send Reply</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- MEMBER PROFILES -->
+
+    <h3 class="adminSub">
+      👤 Member Legacy &amp; Profile Control
+    </h3>
+
+    <div class="adminCard">
+      <label>
+        Member
+        <select id="profileMember"></select>
+      </label>
+
+      <div id="profileEditor"></div>
+    </div>
+
+    <!-- TEAM CONTROL -->
+
+    <h3 class="adminSub">⚔️ Team Control Center</h3>
+
+    <div class="adminCard">
+      <form id="teamCreateForm" class="form">
+        <input
+          name="name"
+          placeholder="New team name"
+          required
+        >
+
+        <button>Create Team</button>
       </form>
     </div>
 
-    <div id="dashboard" class="hidden">
+    <div id="teamAdminList" class="adminList"></div>
 
-      <div class="adminCard" style="margin-bottom:18px">
-        <h3>💰 Economic Empire</h3>
-        <p>Separate economy control dashboard</p>
-        <a
-          class="primary"
-          href="/economy-admin.html"
-          style="display:inline-block;padding:12px"
-        >
-          👑 Open Economic Empire Control ↗
-        </a>
-      </div>
+    <!-- SPOTLIGHT -->
 
-      <div class="adminGrid">
+    <h3 class="adminSub">🌟 Hall of Spotlight</h3>
 
-        <div class="adminCard">
-          <h3>Website Access</h3>
-          <select id="siteMode">
-            <option value="public">Public / Online</option>
-            <option value="maintenance">Maintenance Mode</option>
-            <option value="private">Private / Locked</option>
-          </select>
-          <button id="saveMode">Apply Website Mode</button>
-        </div>
+    <div class="adminCard">
+      <form id="spotlightForm" class="form">
 
-        <div class="adminCard">
-          <h3>Add Member</h3>
-          <form id="memberForm" class="form">
-            <input name="name" placeholder="Member name" required>
-            <input name="points" type="number" min="0" placeholder="Starting points (0)">
-            <button>Add Member</button>
-          </form>
-        </div>
-
-        <div class="adminCard">
-          <h3>Publish Announcement</h3>
-          <form id="newsForm" class="form">
-            <input name="title" placeholder="Headline" required>
-            <textarea
-              name="body"
-              placeholder="Announcement (up to 20,000 characters)"
-              maxlength="20000"
-              required
-            ></textarea>
-            <button>Publish</button>
-          </form>
-        </div>
-
-        <div class="adminCard">
-          <h3>Publish / Update Task</h3>
-          <form id="taskForm" class="form">
-            <input name="title" placeholder="Task title" required>
-            <textarea name="description" placeholder="Task instructions" required></textarea>
-            <input name="reward" placeholder="Reward (e.g. 500 points)">
-            <input name="deadline" placeholder="Deadline (e.g. Tonight 10 PM)">
-            <select name="status">
-              <option value="active">Active</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="closed">Closed</option>
-            </select>
-            <button>Save Task</button>
-          </form>
-        </div>
-
-        <div class="adminCard">
-          <h3>Create Poll</h3>
-          <form id="pollForm" class="form">
-            <input name="title" placeholder="Poll question / title" required>
-
-            <select name="type" id="pollType">
-              <option value="normal">Normal Poll</option>
-              <option value="nomination">Nomination Poll</option>
-            </select>
-
-            <textarea name="choices" placeholder="Normal poll options, one per line"></textarea>
-
-            <label>
-              Selections allowed per voter
-              <input name="selectCount" type="number" min="1" value="1" required>
-            </label>
-
-            <label class="check">
-              <input name="resultsVisible" type="checkbox">
-              Show results while open
-            </label>
-
-            <button>Create Draft Poll</button>
-          </form>
-        </div>
-
-      </div>
-
-      <h3 class="adminSub">📢 Announcement Controls</h3>
-      <div id="adminAnnouncements" class="adminList"></div>
-
-      <h3 class="adminSub">🛡️ FFGC2K26 SUPPORT — PRIVATE INBOX</h3>
-
-      <div class="adminCard">
-        <button id="supportInboxRefresh" type="button">Refresh Inbox</button>
-        <div id="supportInbox"></div>
-
-        <div id="supportAdminChat" class="hidden">
-          <h3 id="supportAdminTitle"></h3>
-          <div id="supportAdminMessages" class="supportChat"></div>
-
-          <form id="supportAdminForm" class="form">
-            <textarea
-              name="text"
-              maxlength="1500"
-              placeholder="Reply as FFGC2K26 SUPPORT"
-              required
-            ></textarea>
-            <button>Send Reply</button>
-          </form>
-        </div>
-      </div>
-
-      <h3 class="adminSub">👤 Member Legacy &amp; Profile Control</h3>
-
-      <div class="adminCard">
         <label>
           Member
-          <select id="profileMember"></select>
+          <select
+            name="memberId"
+            id="spotlightMember"
+          ></select>
         </label>
-        <div id="profileEditor"></div>
-      </div>
 
-      <h3 class="adminSub">⚔️ Team Control Center</h3>
+        <input
+          name="title"
+          placeholder="Spotlight title / task winner"
+          required
+          maxlength="100"
+        >
 
-      <div class="adminCard">
-        <form id="teamCreateForm" class="form">
-          <input name="name" placeholder="New team name" required>
-          <button>Create Team</button>
-        </form>
-      </div>
+        <textarea
+          name="description"
+          placeholder="Achievement / announcement (up to 10,000 characters)"
+          maxlength="10000"
+        ></textarea>
 
-      <div id="teamAdminList" class="adminList"></div>
+        <label>
+          Theme
 
-      <h3 class="adminSub">🌟 Hall of Spotlight</h3>
+          <select name="theme">
+            <option value="gold">Golden Champion</option>
+            <option value="purple">Purple Legend</option>
+            <option value="red">Red Alert</option>
+            <option value="blue">Blue Icon</option>
+          </select>
+        </label>
 
-      <div class="adminCard">
-        <form id="spotlightForm" class="form">
+        <label>
+          Expiry (optional)
+          <input type="date" name="expires">
+        </label>
 
-          <label>
-            Member
-            <select name="memberId" id="spotlightMember"></select>
-          </label>
+        <button>Publish Spotlight</button>
+      </form>
+    </div>
+
+    <div
+      id="spotlightAdminList"
+      class="adminList"
+    ></div>
+
+    <!-- DECISION CHAMBER ADMIN -->
+
+    <h3 class="adminSub">
+      ⚖️ Decision Chamber Control
+    </h3>
+
+    <div
+      class="adminCard"
+      id="chamberAdmin"
+    ></div>
+
+    <!-- AUCTION ADMIN -->
+
+    <h3 class="adminSub">
+      🔨 Auction House Control
+    </h3>
+
+    <div class="adminCard">
+
+      <form id="auctionCreate" class="form">
+
+        <input
+          name="title"
+          placeholder="Reward title"
+          maxlength="100"
+          required
+        >
+
+        <textarea
+          name="description"
+          placeholder="Reward rules / description"
+          maxlength="500"
+        ></textarea>
+
+        <label>
+          Rarity
+
+          <select name="rarity">
+            <option>common</option>
+            <option selected>rare</option>
+            <option>epic</option>
+            <option>legendary</option>
+          </select>
+        </label>
+
+        <label>
+          Starts
+          <input
+            type="datetime-local"
+            name="startAt"
+            required
+          >
+        </label>
+
+        <label>
+          Ends
+          <input
+            type="datetime-local"
+            name="endAt"
+            required
+          >
+        </label>
+
+        <label>
+          Starting bid
 
           <input
-            name="title"
-            placeholder="Spotlight title / task winner"
+            type="number"
+            name="startingBid"
+            min="1"
+            max="1000"
+            value="100"
             required
-            maxlength="100"
           >
+        </label>
 
-          <textarea
-            name="description"
-            placeholder="Achievement / announcement (up to 10,000 characters)"
-            maxlength="10000"
-          ></textarea>
-
-          <label>
-            Theme
-            <select name="theme">
-              <option value="gold">Golden Champion</option>
-              <option value="purple">Purple Legend</option>
-              <option value="red">Red Alert</option>
-              <option value="blue">Blue Icon</option>
-            </select>
-          </label>
-
-          <label>
-            Expiry (optional)
-            <input type="date" name="expires">
-          </label>
-
-          <button>Publish Spotlight</button>
-        </form>
-      </div>
-
-      <div id="spotlightAdminList" class="adminList"></div>
-
-      <h3 class="adminSub">⚖️ Decision Chamber Control</h3>
-      <div class="adminCard" id="chamberAdmin"></div>
-
-      <h3 class="adminSub">🔨 Auction House Control</h3>
-
-      <div class="adminCard">
-
-        <form id="auctionCreate" class="form">
+        <label>
+          Minimum increment
 
           <input
-            name="title"
-            placeholder="Reward title"
-            maxlength="100"
+            type="number"
+            name="minIncrement"
+            min="1"
+            max="1000"
+            value="10"
             required
           >
+        </label>
 
-          <textarea
-            name="description"
-            placeholder="Reward rules / description"
-            maxlength="500"
-          ></textarea>
+        <button>Create Auction</button>
+      </form>
 
-          <label>
-            Rarity
-            <select name="rarity">
-              <option>common</option>
-              <option selected>rare</option>
-              <option>epic</option>
-              <option>legendary</option>
-            </select>
-          </label>
+      <div id="auctionAdminList"></div>
 
-          <label>
-            Starts
-            <input type="datetime-local" name="startAt" required>
-          </label>
+      <h4>🔔 Reward Approval Requests</h4>
+      <div id="auctionRewardRequests"></div>
 
-          <label>
-            Ends
-            <input type="datetime-local" name="endAt" required>
-          </label>
+      <div class="auctionSuggestions">
+        <h4>✨ Suggested Rewards — Admin Approval</h4>
 
-          <label>
-            Starting bid
-            <input
-              type="number"
-              name="startingBid"
-              min="1"
-              max="1000"
-              value="100"
-              required
-            >
-          </label>
+        <p class="muted">
+          Suggestions are never published automatically.
+          Review and edit before creating an auction.
+        </p>
 
-          <label>
-            Minimum increment
-            <input
-              type="number"
-              name="minIncrement"
-              min="1"
-              max="1000"
-              value="10"
-              required
-            >
-          </label>
+        <button
+          type="button"
+          id="auctionLoadSuggestions"
+        >
+          Show Suggestions
+        </button>
 
-          <button>Create Auction</button>
-        </form>
-
-        <div id="auctionAdminList"></div>
-
-        <h4>🔔 Reward Approval Requests</h4>
-        <div id="auctionRewardRequests"></div>
-
-        <div class="auctionSuggestions">
-          <h4>✨ Suggested Rewards — Admin Approval</h4>
-          <p class="muted">
-            Suggestions are never published automatically.
-            Review and edit before creating an auction.
-          </p>
-          <button type="button" id="auctionLoadSuggestions">
-            Show Suggestions
-          </button>
-          <div id="auctionSuggestionList"></div>
-        </div>
-
+        <div id="auctionSuggestionList"></div>
       </div>
-
-      <h3 class="adminSub">Members &amp; Points</h3>
-      <div id="adminMembers" class="adminList"></div>
-
-      <h3 class="adminSub">🔴 Elimination Poll Control</h3>
-      <div class="adminCard" id="eliminationAdminPanel">
-        <p class="muted">⏳ Loading Elimination Poll creator…</p>
-      </div>
-
-      <h3 class="adminSub">Poll Controls</h3>
-      <div id="adminPolls" class="adminList"></div>
-
-      <h3 class="adminSub">👑 Nomination Control Center</h3>
-      <p class="muted">
-        Close a nomination poll to set the automatic cutoff,
-        add rule-violation nominations and reveal results.
-      </p>
-      <div id="nominationControls" class="adminList"></div>
-
-      <h3 class="adminSub">Task Controls</h3>
-      <div id="adminTasks" class="adminList"></div>
-
-      <h3 class="adminSub">Activity History</h3>
-      <div id="history" class="adminList"></div>
 
     </div>
-  </section>
+
+    <!-- MEMBER POINTS -->
+
+    <h3 class="adminSub">Members &amp; Points</h3>
+
+    <div
+      id="adminMembers"
+      class="adminList"
+    ></div>
+
+    <!-- ELIMINATION ADMIN -->
+
+    <h3 class="adminSub">
+      🔴 Elimination Poll Control
+    </h3>
+
+    <div
+      class="adminCard"
+      id="eliminationAdminPanel"
+    >
+      <p class="muted">
+        ⏳ Loading Elimination Poll creator…
+      </p>
+    </div>
+
+    <!-- POLL ADMIN -->
+
+    <h3 class="adminSub">Poll Controls</h3>
+
+    <div
+      id="adminPolls"
+      class="adminList"
+    ></div>
+
+    <!-- NOMINATION ADMIN -->
+
+    <h3 class="adminSub">
+      👑 Nomination Control Center
+    </h3>
+
+    <p class="muted">
+      Close a nomination poll to set the automatic cutoff,
+      add rule-violation nominations and reveal results.
+    </p>
+
+    <div
+      id="nominationControls"
+      class="adminList"
+    ></div>
+
+    <!-- TASK ADMIN -->
+
+    <h3 class="adminSub">Task Controls</h3>
+
+    <div
+      id="adminTasks"
+      class="adminList"
+    ></div>
+
+    <!-- HISTORY -->
+
+    <h3 class="adminSub">Activity History</h3>
+
+    <div
+      id="history"
+      class="adminList"
+    ></div>
+
+  </div>
+</section>
 
 </main>
 
@@ -572,74 +888,19 @@
 
 <div id="toast" role="status"></div>
 
-<!-- Auction -->
+<!-- MAIN APPLICATION -->
+
 <link rel="stylesheet" href="/auction.css">
+
 <script src="/app.js"></script>
 <script src="/auction.js"></script>
 
-<!-- Decision Chamber -->
+<!-- DECISION CHAMBER -->
+
 <link rel="stylesheet" href="/chamber.css">
 <script src="/chamber.js"></script>
 
-<!-- Economic Empire -->
-<style id="economicEmpireIntegratedStyles">
-  #economicEmpireOverlay {
-    position: fixed;
-    inset: 0;
-    z-index: 99999;
-    background: #08120f;
-    display: none;
-    flex-direction: column;
-  }
-
-  #economicEmpireOverlay.is-open {
-    display: flex;
-  }
-
-  #economicEmpireToolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 16px;
-    background: #0d1b15;
-    border-bottom: 1px solid #b9994d;
-    color: #f7e5aa;
-    font: 600 15px system-ui, sans-serif;
-  }
-
-  #economicEmpireClose {
-    background: #e7c773;
-    color: #111;
-    border: 0;
-    border-radius: 9px;
-    padding: 10px 15px;
-    cursor: pointer;
-    font-weight: 700;
-  }
-
-  #economicEmpireFrame {
-    flex: 1;
-    width: 100%;
-    border: 0;
-    background: #07120c;
-  }
-
-  body.economic-empire-open {
-    overflow: hidden;
-  }
-
-  @media (max-width: 600px) {
-    #economicEmpireToolbar {
-      padding: 8px 10px;
-      font-size: 13px;
-    }
-
-    #economicEmpireClose {
-      padding: 9px 12px;
-    }
-  }
-</style>
+<!-- ECONOMIC EMPIRE -->
 
 <div
   id="economicEmpireOverlay"
@@ -649,7 +910,11 @@
 >
   <div id="economicEmpireToolbar">
     <span>💰 FFGC2K26 — ECONOMIC EMPIRE</span>
-    <button type="button" id="economicEmpireClose">
+
+    <button
+      type="button"
+      id="economicEmpireClose"
+    >
       ← Back to Arena
     </button>
   </div>
@@ -661,7 +926,7 @@
   ></iframe>
 </div>
 
-<script id="economicEmpireIntegratedScript">
+<script>
 (() => {
   const open = document.getElementById('openEconomicEmpire');
   const overlay = document.getElementById('economicEmpireOverlay');
@@ -690,7 +955,10 @@
   close.addEventListener('click', hide);
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && overlay.classList.contains('is-open')) {
+    if (
+      e.key === 'Escape' &&
+      overlay.classList.contains('is-open')
+    ) {
       hide();
     }
   });
@@ -706,13 +974,43 @@
 })();
 </script>
 
-<!-- Elimination Arena -->
+<!-- ELIMINATION ARENA -->
+
 <link rel="stylesheet" href="/elimination.css">
+
 <script src="/elimination.js?v=20261025-stability3"></script>
 
-<!-- Royale Arena -->
+<!-- ROYALE ARENA -->
+
 <script src="/royale.js" defer></script>
 <script src="/member5.js?v=6.1" defer></script>
 
+<!-- GOD ADMIN PANEL BUTTON FIX -->
+
+<script>
+(() => {
+  const button = document.getElementById('adminBtn');
+  const panel = document.getElementById('admin');
+
+  if (!button || !panel) return;
+
+  function showAdmin() {
+    panel.classList.remove('hidden');
+    panel.classList.add('admin-panel-open');
+
+    panel.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    });
+  }
+
+  button.addEventListener('click', showAdmin);
+
+  if (location.hash === '#admin') {
+    showAdmin();
+  }
+})();
+</script>
+
 </body>
-        </html>
+  </html>
