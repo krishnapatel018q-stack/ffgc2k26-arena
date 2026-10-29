@@ -1546,6 +1546,40 @@ const types = {
   '.svg': 'image/svg+xml'
 };
 
+const allowedFiles = new Set([
+  'index.html',
+  'app.js',
+  'style.css',
+
+  // Existing Arena
+  'arena4.css',
+  'royale.css',
+  'royale.js',
+
+  // Royale Arena 6
+  'member5.js',
+  'member5.css',
+  'royale6.css',
+
+  // Auction House
+  'auction.js',
+  'auction.css',
+
+  // Decision Chamber
+  'chamber.js',
+  'chamber.css',
+
+  // Economic Empire
+  'economy.html',
+  'economy-admin.html',
+  'economy.css',
+  'economy.js',
+
+  // Elimination Arena
+  'elimination.js',
+  'elimination.css'
+]);
+
 let requestQueue = Promise.resolve();
 
 const server = http.createServer((req, res) => {
@@ -1557,10 +1591,12 @@ const server = http.createServer((req, res) => {
     return bad(res, 'Invalid URL');
   }
 
+  // API ROUTES
   if (u.pathname.startsWith('/api/')) {
     const run = () =>
-      api(req, res, u).catch(e => {
-        console.error(e);
+      api(req, res, u).catch(error => {
+        console.error(error);
+
         if (!res.headersSent) {
           bad(res, 'Server error', 500);
         }
@@ -1570,33 +1606,65 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Shutdown is enforced for HTML, JS and CSS too; only the authenticated God Admin sees the site.
+  // GOD ADMIN ACCESS
   if (u.pathname === '/god-access') {
-    res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});
-    return res.end(fs.readFileSync(path.join(ROOT,'public','god-access.html')));
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store'
+    });
+
+    return res.end(
+      fs.readFileSync(
+        path.join(ROOT, 'public', 'god-access.html')
+      )
+    );
   }
-  if (db.settings.siteMode === 'shutdown' && !isAdmin(req)) {
-    res.writeHead(503,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
-    return res.end(fs.readFileSync(path.join(ROOT,'public','shutdown.html')));
+
+  // WEBSITE SHUTDOWN
+  if (
+    db.settings.siteMode === 'shutdown' &&
+    !isAdmin(req)
+  ) {
+    res.writeHead(503, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff'
+    });
+
+    return res.end(
+      fs.readFileSync(
+        path.join(ROOT, 'public', 'shutdown.html')
+      )
+    );
   }
+
+  // REQUESTED FILE
   const file = u.pathname === '/'
     ? 'index.html'
     : u.pathname.slice(1);
 
-  if (!['index.html', 'app.js', 'style.css', 'auction.js', 'auction.css', 'arena4.css', 'chamber.js', 'chamber.css', 'economy.html', 'economy-admin.html', 'economy.css', 'economy.js', 'elimination.js', 'elimination.css', 'royale.css', 'royale.js'].includes(file)) {
+  // ALLOWED WEBSITE FILES
+  if (!allowedFiles.has(file)) {
     return bad(res, 'Not found', 404);
   }
 
+  // SERVE FILE
   fs.readFile(
     path.join(ROOT, 'public', file),
     (err, data) => {
       if (err) {
-        res.writeHead(404);
+        res.writeHead(404, {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-store'
+        });
+
         return res.end('Not found');
       }
 
       res.writeHead(200, {
-        'Content-Type': types[path.extname(file)],
+        'Content-Type':
+          types[path.extname(file)] ||
+          'application/octet-stream',
         'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'no-store'
       });
@@ -1606,21 +1674,45 @@ const server = http.createServer((req, res) => {
   );
 });
 
-// Serialize scheduled settlement with API writes.
+// BACKGROUND AUCTION AND ECONOMY SETTLEMENT
 setInterval(() => {
-  const run = async () => { const auctionChanged=settleAuctions(); const econChanged=econSettle(); if (auctionChanged||econChanged) await save(); };
-  requestQueue = requestQueue.then(run, run).catch(e => console.error('Auction settlement:', e));
+  const run = async () => {
+    const auctionChanged = settleAuctions();
+    const econChanged = econSettle();
+
+    if (auctionChanged || econChanged) {
+      await save();
+    }
+  };
+
+  requestQueue = requestQueue
+    .then(run, run)
+    .catch(error => {
+      console.error('Auction settlement:', error);
+    });
 }, 10000);
 
 // START SERVER AFTER DATABASE CONNECTION
 load()
-  .then(async () => {await applyKartikEviction();const previous=db.economy?.seedVersion||0;economyStore();if(previous<1)await save();})
+  .then(async () => {
+    await applyKartikEviction();
+
+    const previous = db.economy?.seedVersion || 0;
+
+    economyStore();
+
+    if (previous < 1) {
+      await save();
+    }
+  })
   .then(() =>
-    server.listen(PORT, () =>
-      console.log(`FFGC2K26 running on port ${PORT}`)
-    )
+    server.listen(PORT, () => {
+      console.log(
+        `FFGC2K26 running on port ${PORT}`
+      );
+    })
   )
-  .catch(e => {
-    console.error(e);
+  .catch(error => {
+    console.error(error);
     process.exit(1);
   });
