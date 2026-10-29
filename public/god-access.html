@@ -1,1 +1,220 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>God Admin — FFGC2K26</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at top,#322452,#090c19 65%);font:16px system-ui;color:white;padding:18px;box-sizing:border-box}form{background:#131a30;border:1px solid #554d7b;border-radius:20px;padding:30px;width:min(100%,360px);box-sizing:border-box}h1{font-size:24px}small{color:#9fe9ef;letter-spacing:2px}input,button{box-sizing:border-box;width:100%;padding:14px;margin:8px 0;border-radius:10px;font:inherit}input{background:#0b1022;border:1px solid #4c4d70;color:white}button{background:#9b79ff;border:0;color:#090c19;font-weight:800;cursor:pointer}#error{color:#ff9cae}</style></head><body><form id="form"><small>✦ FFGC2K26 / SECURE ACCESS</small><h1>God Admin Login</h1><p>Restricted administrative access during Arena shutdown.</p><input name="username" placeholder="Admin username" required autocomplete="username"><input name="password" type="password" placeholder="Password" required autocomplete="current-password"><button>Enter Command Center</button><p id="error" role="alert"></p></form><script>document.getElementById('form').onsubmit=async e=>{e.preventDefault();const f=e.target;const r=await fetch('/api/login',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:f.username.value,password:f.password.value})});if(r.ok)location.href='/';else document.getElementById('error').textContent='Login unsuccessful. Check your credentials.'}</script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>God Admin | FFGC2K26</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, #35215d, #090b17 70%);
+  color: white;
+  font-family: system-ui, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.panel {
+  width: 100%;
+  max-width: 420px;
+  padding: 32px 25px;
+  background: rgba(17, 22, 43, 0.95);
+  border: 1px solid #7055ac;
+  border-radius: 22px;
+  box-shadow: 0 0 45px rgba(143, 89, 255, 0.15);
+}
+
+.logo {
+  color: #b99aff;
+  letter-spacing: 3px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+h1 {
+  margin: 15px 0;
+  font-size: 29px;
+}
+
+p {
+  color: #aab1ca;
+  line-height: 1.6;
+}
+
+input {
+  width: 100%;
+  padding: 15px;
+  margin-top: 12px;
+  background: #090e20;
+  color: white;
+  border: 1px solid #555277;
+  border-radius: 11px;
+  font-size: 16px;
+}
+
+button, .dashboard-link {
+  display: block;
+  width: 100%;
+  padding: 15px;
+  margin-top: 20px;
+  background: linear-gradient(135deg, #b78cff, #7755ff);
+  color: #090b17;
+  border: 0;
+  border-radius: 11px;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+#error {
+  color: #ff8da3;
+}
+
+#success {
+  color: #76f0b6;
+}
+
+.hidden {
+  display: none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="panel">
+
+  <div class="logo">✦ FFGC2K26</div>
+
+  <h1>👑 GOD ADMIN</h1>
+
+  <p>
+    Welcome to the FFGC2K26 Command Center.
+    Administrative access is restricted.
+  </p>
+
+  <form id="loginForm">
+
+    <input
+      id="username"
+      type="text"
+      placeholder="Admin Username"
+      autocomplete="username"
+      required
+    >
+
+    <input
+      id="password"
+      type="password"
+      placeholder="Admin Password"
+      autocomplete="current-password"
+      required
+    >
+
+    <button type="submit" id="loginButton">
+      ENTER COMMAND CENTER
+    </button>
+
+  </form>
+
+  <p id="error" role="alert"></p>
+  <p id="success" role="status"></p>
+
+  <div id="dashboard" class="hidden">
+
+    <a class="dashboard-link" href="/">
+      OPEN ARENA DASHBOARD →
+    </a>
+
+    <p>
+      You are authenticated as God Admin.
+    </p>
+
+  </div>
+
+</div>
+
+<script>
+const form = document.getElementById('loginForm');
+const error = document.getElementById('error');
+const success = document.getElementById('success');
+const dashboard = document.getElementById('dashboard');
+const loginButton = document.getElementById('loginButton');
+
+async function checkAdmin() {
+  try {
+    const response = await fetch('/api/public', {
+      credentials: 'same-origin',
+      cache: 'no-store'
+    });
+
+    if (!response.ok) return;
+
+    const data = await response.json();
+
+    if (data.admin === true) {
+      form.classList.add('hidden');
+      dashboard.classList.remove('hidden');
+      success.textContent = '✓ Admin session active';
+    }
+  } catch (e) {
+    console.error('Session check failed', e);
+  }
+}
+
+form.addEventListener('submit', async function(event) {
+  event.preventDefault();
+
+  error.textContent = '';
+  success.textContent = '';
+  loginButton.disabled = true;
+  loginButton.textContent = 'AUTHENTICATING...';
+
+  try {
+    const response = await fetch('/api/login', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value
+      })
+    });
+
+    if (!response.ok) {
+      error.textContent = 'Incorrect admin username or password.';
+      return;
+    }
+
+    form.classList.add('hidden');
+    dashboard.classList.remove('hidden');
+
+    success.textContent = '✓ God Admin authentication successful';
+
+  } catch (e) {
+    error.textContent = 'Connection error. Please try again.';
+  } finally {
+    loginButton.disabled = false;
+    loginButton.textContent = 'ENTER COMMAND CENTER';
+  }
+});
+
+checkAdmin();
+</script>
+
+</body>
+</html>
