@@ -110,3 +110,71 @@ html body.v5-body #v5Home .ffgc-home-spotlight:not(.hidden) {
 html body.v5-body #v5Home .ffgc-home-spotlight.v5-route-hidden {
   display: block !important;
 }
+
+/* FFGC2K26 compact homepage Spotlight: one horizontal swipe row. */
+html body.v5-body #v5Home #spotlightSection.ffgc-home-spotlight {
+  width:100%!important;max-width:100%!important;min-width:0!important;
+  padding:12px 12px 14px!important;margin:0 0 14px!important;
+  overflow:hidden!important;box-sizing:border-box!important;
+  background:linear-gradient(125deg,#1a0d24,#09050e)!important;
+  border:1px solid #703092!important;border-radius:16px!important;
+}
+html body.v5-body #v5Home #spotlightSection .sectionHeading {
+  margin:0 0 9px!important;padding:0!important;min-height:0!important;
+}
+html body.v5-body #v5Home #spotlightSection .sectionHeading h2 {
+  font-size:17px!important;line-height:1.25!important;margin:2px 0!important;
+}
+html body.v5-body #v5Home #spotlightSection .sectionHeading small {
+  font-size:9px!important;letter-spacing:.1em!important;
+}
+html body.v5-body #v5Home #spotlightCards {
+  display:flex!important;flex-wrap:nowrap!important;gap:10px!important;
+  width:100%!important;max-width:100%!important;min-width:0!important;
+  overflow-x:auto!important;overflow-y:hidden!important;
+  scroll-snap-type:x mandatory!important;-webkit-overflow-scrolling:touch!important;
+  padding:3px 2px 9px!important;box-sizing:border-box!important;
+  scrollbar-width:thin;scrollbar-color:#8c36bb transparent;
+}
+html body.v5-body #v5Home #spotlightCards > .spotlightCard {
+  flex:0 0 clamp(205px,68vw,265px)!important;
+  width:clamp(205px,68vw,265px)!important;
+  min-width:0!important;max-width:265px!important;
+  min-height:0!important;height:165px!important;
+  padding:11px 12px!important;margin:0!important;
+  overflow:hidden!important;box-sizing:border-box!important;
+  scroll-snap-align:start!important;
+  border-radius:13px!important;
+  background:linear-gradient(140deg,#261033,#100819)!important;
+  border:1px solid #8737b3!important;
+  box-shadow:inset 0 0 14px #ae3dff16,0 0 12px #a12be622!important;
+}
+html body.v5-body #v5Home #spotlightCards > .spotlightCard img {
+  width:30px!important;height:30px!important;object-fit:cover!important;
+  border-radius:50%!important;float:right!important;margin:0 0 4px 7px!important;
+}
+html body.v5-body #v5Home #spotlightCards > .spotlightCard small {font-size:9px!important;}
+html body.v5-body #v5Home #spotlightCards > .spotlightCard h3 {
+  font-size:15px!important;line-height:1.2!important;margin:5px 0 3px!important;
+}
+html body.v5-body #v5Home #spotlightCards > .spotlightCard strong {
+  display:block!important;font-size:12px!important;line-height:1.3!important;
+  overflow:hidden!important;white-space:nowrap!important;text-overflow:ellipsis!important;
+}
+html body.v5-body #v5Home #spotlightCards > .spotlightCard p {
+  display:-webkit-box!important;-webkit-box-orient:vertical!important;
+  -webkit-line-clamp:2!important;line-clamp:2!important;
+  overflow:hidden!important;font-size:11px!important;line-height:1.35!important;
+  margin:5px 0!important;white-space:normal!important;
+}
+html body.v5-body #v5Home #spotlightCards > .spotlightCard button {
+  font-size:10px!important;padding:5px 9px!important;min-height:0!important;
+}
+html body.v5-body #v5Home #spotlightCards > .ffgc-hall-empty {
+  flex:1 0 100%!important;font-size:12px!important;padding:8px!important;
+}
+@media(min-width:800px){
+  html body.v5-body #v5Home #spotlightCards > .spotlightCard {
+    flex-basis:245px!important;width:245px!important;
+  }
+}
