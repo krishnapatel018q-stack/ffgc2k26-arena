@@ -35,3 +35,31 @@ body.v5-body .ffgc-obsidian-btn{background:linear-gradient(127deg,#12091c 0%,#2a
 .ffgc-hall-empty strong{letter-spacing:2px;color:#d27bff}
 .ffgc-hall-empty p{color:#c7acd6}
 #spotlightSection:not(.v5-route-hidden){display:block!important;visibility:visible!important}
+
+
+/* V3 FINAL: high-specificity correction of hard-coded turquoise in member5.css and royale6.css */
+html body.v5-body,html body.v5-body .v5-area,html body.v5-body .v5-work,html body.v5-body .v5-shell{background:#09050e!important;color:#f8efff!important}
+html body.v5-body .v5-hero{background:radial-gradient(ellipse at 82% 32%,#681c9547,transparent 50%),linear-gradient(128deg,#1d1029,#0c0713 70%,#281035)!important;border:1px solid #8b42bb!important}
+html body.v5-body .v5-hero h1 em,html body.v5-body .hero h1 em{background:linear-gradient(100deg,#f1d3ff,#bd57ff,#8f2fd7)!important;background-clip:text!important;-webkit-background-clip:text!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important}
+html body.v5-body .v5-kicker,html body.v5-body .v5-player-info small,html body.v5-body .v5-player-stat small,html body.v5-body .v5-feature-heading small,html body.v5-body .v5-brand span,html body.v5-body .v5-tile>span{color:#d48aff!important}
+html body.v5-body .v5-hero-actions button,html body.v5-body .v5-player button,html body.v5-body .v5-login-note button,html body.v5-body .v5-welcome-box button,html body.v5-body .primary,html body.v5-body a.primary{color:#f9efff!important;background:linear-gradient(122deg,#14091f 0%,#35104b 38%,#1b0a29 41%,#4c176b 68%,#170a23 71%,#100719 100%)!important;border:1px solid #ad4cdb!important;box-shadow:inset 0 1px 0 #e3a7ff45,0 0 19px #a633e44d!important;text-shadow:0 0 8px #d17eff66!important}
+html body.v5-body .v5-hero-actions button+button{background:linear-gradient(120deg,#1d0e29,#331443,#13091c)!important;border-color:#80419c!important}
+html body.v5-body .v5-avatar{background:linear-gradient(140deg,#3a164f,#a14fdd)!important;color:#f7eaff!important;box-shadow:0 0 20px #a444dd55!important}
+html body.v5-body .v5-player,html body.v5-body .v5-login-note,html body.v5-body .v5-tile,html body.v5-body .v5-section.panel,html body.v5-body .v5-endcard{background:linear-gradient(130deg,#251331,#100a18 78%)!important;border-color:#713894!important}
+html body.v5-body .v5-bottom-btn,html body.v5-body .v5-nav-btn{color:#c3a6d5!important}
+html body.v5-body .v5-bottom-btn.active,html body.v5-body .v5-nav-btn.active{color:#e3a4ff!important}
+html body.v5-body .v5-crest,html body.v5-body .v5-crest-inner{border-color:#974ac28c!important;color:#d5a5f2!important}
+html body.v5-body .v5-welcome{background:radial-gradient(circle at center,#351345,#08050d 75%)!important}
+html body.v5-body .v5-welcome-box{background:#190c26ed!important;border-color:#a64ada!important}
+html body.v5-body .v5-welcome-box small,html body.v5-body .v5-welcome-box h2 em{color:#d884ff!important}
+html body.v5-body .v5-auction-stage,html body.v5-body .v5-auction-wallet,html body.v5-body .v5-auction-grid .auctionCard{background:linear-gradient(125deg,#251131,#100918)!important;border-color:#7b3c9e!important}
+html body.v5-body .v5-auction-grid .auctionBid button{background:linear-gradient(125deg,#351348,#14091e)!important;color:#f7e8ff!important;border:1px solid #a446d6!important}
+html body.v5-body .v5-section input,html body.v5-body .v5-section textarea,html body.v5-body .v5-section select{background:#140b1f!important;border-color:#663383!important;color:#f7eaff!important}
+html body.v5-body .v5-tile:hover{border-color:#be58f4!important;box-shadow:0 0 26px #a635e33d!important}
+html body.v5-body #spotlightSection:not(.v5-route-hidden){display:block!important;visibility:visible!important;opacity:1!important}
+html body.v5-body #spotlightSection.v5-route-hidden{display:none!important}
+html body.v5-body #spotlightCards{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:16px!important}
+html body.v5-body #spotlightCards .spotlightCard{background:linear-gradient(140deg,#28113a,#100819)!important;border:1px solid #8c3eb4!important;box-shadow:0 0 20px #9a32d52b!important;color:#f7eaff!important}
+html body.v5-body #spotlightSection .sectionHeading h2{color:#f0ccff!important}
+/* Prevent accidental persistent old cyan button from the previous patch */
+#ffgcQuickAccess{display:none!important}
