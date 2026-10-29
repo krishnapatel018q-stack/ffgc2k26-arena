@@ -82,3 +82,20 @@ html body.v5-body .v5-bottom{background:#10091bf7!important;border-color:#763398
 html body.v5-body .v5-hero,html body.v5-body .v5-player,html body.v5-body .v5-tile{background:linear-gradient(135deg,#25112f,#0d0714 80%)!important;border-color:#71319b!important}
 html body.v5-body #spotlightSection:not(.v5-route-hidden){display:block!important}
 html body.v5-body #spotlightSection.v5-route-hidden{display:none!important}
+
+/* SERVER-FIX V5: loaded after allowlisting obsidian.css in server.js. */
+html body.v5-body .v5-hero-actions button,
+html body.v5-body .v5-player button,
+html body.v5-body .v5-login-note button {
+ background:linear-gradient(130deg,#0b0611 0%,#200c30 30%,#5e1b87 32%,#14091e 35%,#2a103d 67%,#7b28a8 69%,#12091b 72%)!important;
+ border:1px solid #ac4cdb!important;color:#f9edff!important;
+ box-shadow:0 0 16px #a82be244,inset 0 0 14px #bd60f01f!important;
+}
+html body.v5-body .v5-hero-actions button+button{background:linear-gradient(125deg,#12091c,#35134a,#100719)!important}
+html body.v5-body .v5-tile>span,html body.v5-body .v5-kicker,
+html body.v5-body .v5-player-info small,html body.v5-body .v5-player-stat small,
+html body.v5-body .v5-bottom-btn.active{color:#d884ff!important}
+html body.v5-body .v5-section.panel{background:linear-gradient(135deg,#20102b,#0c0714)!important;border-color:#77359d!important}
+html body.v5-body .v5-hero,html body.v5-body .v5-player,html body.v5-body .v5-tile{background:linear-gradient(135deg,#21102c,#0d0714)!important;border-color:#7335a0!important}
+html body.v5-body #spotlightSection:not(.v5-route-hidden){display:block!important}
+html body.v5-body #spotlightCards .spotlightDescription{white-space:pre-wrap;line-height:1.65;color:#e8d1f4}
