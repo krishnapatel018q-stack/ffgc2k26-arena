@@ -1,1 +1,418 @@
+/* FFGC2K26 — ROYALE ARENA 6.0 */
+/* Visual redesign; existing functionality preserved */
 
+:root {
+  --r6-bg: #060917;
+  --r6-panel: #121d35;
+  --r6-purple: #a88aff;
+  --r6-cyan: #72f7e8;
+  --r6-gold: #f6d18b;
+  --r6-line: #52648a;
+}
+
+body {
+  background:
+    radial-gradient(ellipse at 85% 10%, #49318b55, transparent 35%),
+    radial-gradient(ellipse at 10% 70%, #087f9550, transparent 38%),
+    #060917 !important;
+  color: #f5f6ff !important;
+  font-family: Inter, system-ui, sans-serif !important;
+  min-height: 100vh;
+}
+
+/* Animated arena atmosphere */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image:
+    linear-gradient(#ffffff07 1px, transparent 1px),
+    linear-gradient(90deg, #ffffff07 1px, transparent 1px);
+  background-size: 48px 48px;
+  animation: arenaGrid 35s linear infinite;
+}
+
+@keyframes arenaGrid {
+  to { background-position: 96px 96px; }
+}
+
+/* Premium navigation */
+body header,
+.v5-sidebar {
+  background: linear-gradient(
+    160deg, #141c38f5, #090e20f9
+  ) !important;
+  border-color: #7e6dc966 !important;
+  box-shadow: 0 10px 45px #0005 !important;
+  backdrop-filter: blur(20px);
+}
+
+.logo,
+.v5-brand {
+  color: #fff !important;
+  font-weight: 950 !important;
+  letter-spacing: 1px;
+  text-shadow: 0 0 25px #8a6dff66;
+}
+
+.logo span,
+.v5-brand span {
+  color: var(--r6-cyan) !important;
+}
+
+.v5-nav-btn {
+  border-radius: 14px !important;
+  transition: .25s ease !important;
+}
+
+.v5-nav-btn:hover {
+  transform: translateX(4px);
+  background: #29355c !important;
+}
+
+.v5-nav-btn.active {
+  background: linear-gradient(
+    100deg, #7255d9, #293a70
+  ) !important;
+  border: 1px solid #a995ff !important;
+  box-shadow: 0 8px 30px #795cff44;
+}
+
+/* Main arena hero */
+.hero,
+.v5-hero {
+  position: relative;
+  overflow: hidden;
+  min-height: 420px;
+  background:
+    radial-gradient(circle at 80% 40%, #8b59d977, transparent 40%),
+    radial-gradient(circle at 15% 85%, #22a8b544, transparent 45%),
+    linear-gradient(125deg, #1d2851, #10162f 70%, #251a42)
+    !important;
+  border: 1px solid #8f80e9 !important;
+  border-radius: 30px !important;
+  box-shadow:
+    0 25px 70px #0008,
+    0 0 60px #7755df30 !important;
+}
+
+.hero::before,
+.v5-hero::before {
+  content: "";
+  position: absolute;
+  width: 330px;
+  height: 330px;
+  border: 2px dashed #c5b2ff66;
+  border-radius: 50%;
+  right: -75px;
+  top: 20px;
+  pointer-events: none;
+  animation: royaleRotate 28s linear infinite;
+}
+
+.hero h1,
+.v5-hero h1 {
+  font-size: clamp(45px, 7vw, 105px) !important;
+  font-weight: 950 !important;
+  line-height: 1.05 !important;
+  letter-spacing: -3px !important;
+  text-shadow: 0 8px 40px #0008;
+}
+
+.hero h1 em,
+.v5-hero h1 em {
+  background: linear-gradient(
+    90deg, #76fff0, #c7afff, #f7d49c
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@keyframes royaleRotate {
+  to { transform: rotate(360deg); }
+}
+
+/* Premium content panels */
+.panel,
+.v5-section.panel {
+  background:
+    radial-gradient(circle at 100% 0%, #5d4a9930, transparent 45%),
+    linear-gradient(145deg, #1b2948, #10192e)
+    !important;
+  border: 1px solid #52658e !important;
+  border-radius: 25px !important;
+  box-shadow: 0 18px 55px #0005 !important;
+  padding: clamp(20px, 3vw, 36px) !important;
+}
+
+.sectionHeading {
+  border-bottom: 1px solid #ffffff19;
+  padding-bottom: 20px;
+  margin-bottom: 24px;
+}
+
+.sectionHeading h2 {
+  font-size: clamp(25px, 4vw, 43px) !important;
+  font-weight: 950 !important;
+  letter-spacing: -1px;
+}
+
+.sectionHeading small {
+  color: var(--r6-cyan) !important;
+  letter-spacing: 2px !important;
+}
+
+/* Member cards */
+.card,
+.v5-tile {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top right, #7560bd44, transparent 55%),
+    linear-gradient(145deg, #243455, #121e36)
+    !important;
+  border: 1px solid #63769e !important;
+  border-radius: 20px !important;
+  box-shadow: 0 12px 35px #0004 !important;
+  transition: transform .3s, box-shadow .3s !important;
+}
+
+.card:hover,
+.v5-tile:hover {
+  transform: translateY(-6px) !important;
+  box-shadow:
+    0 20px 45px #0008,
+    0 0 30px #8d75ff33 !important;
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(
+    90deg, #70f5e9, #ae91ff, #f6d18b
+  );
+}
+
+/* Leaderboard */
+#podium {
+  gap: 16px !important;
+}
+
+.podiumItem {
+  background: linear-gradient(
+    145deg, #2b315b, #151e38
+  ) !important;
+  border: 1px solid #8584c3 !important;
+  border-radius: 22px !important;
+  padding: 24px 12px !important;
+  box-shadow: 0 14px 35px #0005;
+}
+
+.podiumItem:first-child {
+  border-color: #f2ce83 !important;
+  background: linear-gradient(
+    145deg, #55442e, #24253d
+  ) !important;
+  box-shadow: 0 0 40px #e6bb6d30;
+}
+
+.tableWrap {
+  border-radius: 17px;
+  overflow-x: auto;
+  border: 1px solid #53698c;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th {
+  background: #253454 !important;
+  color: #8cf9ec !important;
+  letter-spacing: 1px;
+  padding: 17px !important;
+}
+
+td {
+  padding: 17px !important;
+  border-bottom: 1px solid #ffffff14;
+}
+
+tbody tr:nth-child(odd) {
+  background: #ffffff06;
+}
+
+tbody tr:hover {
+  background: #8370c522;
+}
+
+/* Auction House */
+#auctionHouse {
+  background:
+    radial-gradient(circle at 90% 10%, #a67a4b35, transparent 40%),
+    linear-gradient(145deg, #24213a, #121a30)
+    !important;
+  border-color: #b49364 !important;
+}
+
+#auctionHouse .sectionHeading h2 {
+  color: #ffe0a3 !important;
+}
+
+#auctionWallet {
+  padding: 20px;
+  margin: 20px 0;
+  background: linear-gradient(
+    110deg, #44342d, #222b44
+  ) !important;
+  border: 1px solid #c8a776 !important;
+  border-radius: 17px;
+  box-shadow: 0 10px 35px #0005;
+}
+
+#auctionCards .card,
+#auctionCards .auctionCard {
+  background:
+    radial-gradient(circle at 50% 0%, #a17b8a44, transparent 55%),
+    linear-gradient(145deg, #302a43, #151e34)
+    !important;
+  border: 1px solid #b59268 !important;
+  border-radius: 23px !important;
+  padding: 24px !important;
+  box-shadow: 0 15px 40px #0006;
+}
+
+#auctionCards .card h3,
+#auctionCards .auctionCard h3 {
+  color: #ffdfa7 !important;
+  font-size: 25px !important;
+}
+
+#auctionCards button {
+  background: linear-gradient(
+    90deg, #f0c57f, #f9dfae
+  ) !important;
+  color: #171827 !important;
+  font-weight: 900 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 28px #e7b86d44;
+}
+
+#auctionCards button:hover {
+  transform: translateY(-2px);
+}
+
+/* Inputs and buttons */
+input,
+textarea,
+select {
+  background: #111c33 !important;
+  border: 1px solid #5b6f97 !important;
+  color: #fff !important;
+  border-radius: 12px !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 2px solid #83eee7 !important;
+  outline-offset: 1px;
+}
+
+button,
+.primary {
+  transition:
+    transform .2s,
+    box-shadow .2s,
+    background .2s;
+}
+
+button:hover,
+.primary:hover {
+  filter: brightness(1.08);
+}
+
+/* Profile */
+#myProfile {
+  border-color: #9682d9 !important;
+}
+
+#memberLoginForm {
+  max-width: 520px;
+  margin: 20px auto;
+  padding: 25px;
+  background: linear-gradient(
+    135deg, #29294c, #121c33
+  );
+  border: 1px solid #8175ba;
+  border-radius: 20px;
+}
+
+/* Spotlight */
+#spotlightSection {
+  border-color: #d3ad73 !important;
+  background:
+    radial-gradient(circle at 90% 0%, #c99a4b44, transparent 40%),
+    linear-gradient(140deg, #302a40, #141c31)
+    !important;
+}
+
+#spotlightSection h2 {
+  color: #ffdda1 !important;
+}
+
+/* Decision Chamber */
+#decisionChamber {
+  border-color: #9778d5 !important;
+}
+
+/* Mobile */
+@media (max-width: 700px) {
+  .hero,
+  .v5-hero {
+    min-height: 360px;
+    border-radius: 20px !important;
+  }
+
+  .hero h1,
+  .v5-hero h1 {
+    font-size: clamp(39px, 11vw, 65px) !important;
+    letter-spacing: -2px !important;
+  }
+
+  .panel,
+  .v5-section.panel {
+    padding: 18px !important;
+    border-radius: 18px !important;
+  }
+
+  .sectionHeading h2 {
+    font-size: 27px !important;
+  }
+
+  #auctionCards {
+    grid-template-columns: 1fr !important;
+  }
+
+  .card,
+  .v5-tile {
+    border-radius: 16px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
