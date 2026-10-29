@@ -63,3 +63,22 @@ html body.v5-body #spotlightCards .spotlightCard{background:linear-gradient(140d
 html body.v5-body #spotlightSection .sectionHeading h2{color:#f0ccff!important}
 /* Prevent accidental persistent old cyan button from the previous patch */
 #ffgcQuickAccess{display:none!important}
+
+/* V4: source-aligned override; loaded for all routes, not just Profile */
+html body.v5-body .v5-hero-actions button,
+html body.v5-body .v5-player button,
+html body.v5-body .v5-welcome-box button,
+html body.v5-body .v5-login-note button,
+html body.v5-body .v5-section button:not(.ghost),
+html body.v5-body .v5-tile,
+html body.v5-body .ffgc-obsidian-btn{
+ background:linear-gradient(122deg,#100719 0%,#210d30 25%,#4a1665 26%,#15091e 28%,#1c0b2a 64%,#71309b 65%,#15091f 68%,#100719 100%)!important;
+ color:#f7e9ff!important;border:1px solid #a74de0!important;
+ box-shadow:inset 0 0 13px #b653ef24,0 0 18px #8f28d94a!important;
+}
+html body.v5-body .v5-hero h1 em,html body.v5-body .v5-welcome-box h2 em,html body.v5-body .v5-auction-stage h2 em{color:#d78aff!important;-webkit-text-fill-color:#d78aff!important;background:none!important;text-shadow:0 0 20px #a13cde60!important}
+html body.v5-body .v5-bottom-btn.active span,html body.v5-body .v5-tile>span,html body.v5-body .v5-kicker,html body.v5-body .v5-player-info small,html body.v5-body .v5-player-stat small{color:#d88aff!important}
+html body.v5-body .v5-bottom{background:#10091bf7!important;border-color:#763398!important}
+html body.v5-body .v5-hero,html body.v5-body .v5-player,html body.v5-body .v5-tile{background:linear-gradient(135deg,#25112f,#0d0714 80%)!important;border-color:#71319b!important}
+html body.v5-body #spotlightSection:not(.v5-route-hidden){display:block!important}
+html body.v5-body #spotlightSection.v5-route-hidden{display:none!important}
