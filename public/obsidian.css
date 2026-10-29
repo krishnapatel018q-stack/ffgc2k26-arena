@@ -19,3 +19,19 @@ body.v5-body .v5-tile:hover,body.v5-body .v5-nav-btn:hover {border-color:#b56ada
 #myProfile #admin{margin-top:20px;background:#150f20!important;border:1px solid #854da4!important}
 @media(max-width:650px){.ffgc-profile-actions{grid-template-columns:1fr;padding:13px}.ffgc-obsidian-btn{min-height:83px}}
 @media(prefers-reduced-motion:reduce){.ffgc-obsidian-btn{transition:none!important}}
+
+/* CRYING OBSIDIAN V2 — remove inherited cyan/blue UI accents */
+:root, body.v5-body {--v5-bg:#08040d!important;--v5-card:#160b20!important;--v5-border:#683189!important;--v5-cyan:#c356ff!important;--v5-purple:#bb36ff!important;--v5-gold:#e9a2ff!important;--r6-bg:#08040d!important;--r6-panel:#1a0d26!important;--r6-cyan:#c356ff!important;--r6-purple:#bb36ff!important;--r6-gold:#e9a2ff!important}
+html,body.v5-body{background:#08040d!important;color:#f7eaff!important}
+body.v5-body .v5-shell,body.v5-body .v5-work,body.v5-body .v5-area{background-color:#08040d!important}
+body.v5-body .v5-sidebar,body.v5-body .v5-top,body.v5-body .v5-bottom{background:linear-gradient(145deg,#12091b,#090510)!important;border-color:#60257d!important}
+body.v5-body .v5-brand span,body.v5-body .v5-kicker,body.v5-body .v5-top small,body.v5-body .v5-hero h1 em{color:#d77aff!important}
+body.v5-body .v5-nav-btn.active,body.v5-body .v5-bottom-btn.active{color:#f2d0ff!important;background:linear-gradient(135deg,#371348,#1a0b27)!important;border-color:#a33de0!important}
+body.v5-body .panel,body.v5-body .v5-tile,body.v5-body .v5-player,body.v5-body .card,body.v5-body .adminCard{background:linear-gradient(150deg,#1d1028,#100a19)!important;border-color:#663080!important;color:#f7eaff!important}
+body.v5-body button:not(.ffgc-obsidian-btn),body.v5-body .primary{accent-color:#bd43fa}
+body.v5-body .v5-hero{background:radial-gradient(circle at 75% 15%,#6d1ca155,transparent 55%),linear-gradient(130deg,#190d23,#0b0611)!important;border-color:#7b299f!important}
+body.v5-body .ffgc-obsidian-btn{background:linear-gradient(127deg,#12091c 0%,#2a103c 31%,#13091d 33%,#1e0a2f 65%,#491265 67%,#11081b 70%)!important;border-color:#ac40e8!important;box-shadow:inset 0 0 16px #a531db24,0 0 20px #b02dff38!important}
+.ffgc-hall-empty{padding:34px 20px;text-align:center;background:linear-gradient(135deg,#1b0c29,#0e0817);border:1px solid #76349c;border-radius:16px;color:#edcaff}
+.ffgc-hall-empty strong{letter-spacing:2px;color:#d27bff}
+.ffgc-hall-empty p{color:#c7acd6}
+#spotlightSection:not(.v5-route-hidden){display:block!important;visibility:visible!important}
