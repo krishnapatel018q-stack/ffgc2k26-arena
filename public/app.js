@@ -30,7 +30,7 @@ async function loadMember(){
  }catch(e){$('#memberLoginForm').classList.remove('hidden');$('#memberProfileView').classList.add('hidden');$('#supportMember').classList.add('hidden')}
 }
 function resizePhoto(file){return new Promise((resolve,reject)=>{if(file.size>8e6)return reject(Error('Photo must be under 8 MB'));let img=new Image(),url=URL.createObjectURL(file);img.onload=()=>{let c=document.createElement('canvas'),ratio=Math.min(1,300/Math.max(img.width,img.height));c.width=Math.max(1,Math.round(img.width*ratio));c.height=Math.max(1,Math.round(img.height*ratio));c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);let v=c.toDataURL('image/jpeg',.72);if(v.length>65000)return reject(Error('Photo too large after resizing'));resolve(v)};img.onerror=()=>{URL.revokeObjectURL(url);reject(Error('Could not read photo'))};img.src=url})}
-$('#memberLoginForm').onsubmit=e=>{e.preventDefault();run(async()=>{await call('/api/member/login',{code:e.target.elements.code.value});e.target.reset();await loadMember();toast('Profile unlocked')})};
+$('#memberLoginForm').onsubmit=e=>{e.preventDefault();run(async()=>{await call('/api/member/login',{code:e.target.elements.code.value});e.target.reset();await loadMember();window.dispatchEvent(new CustomEvent('arena:login-success'));toast('Profile unlocked')})};
 function renderLegacyAdmin(){
  const members=adminData.members;
  const opts=members.map(m=>`<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
