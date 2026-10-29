@@ -13,58 +13,9 @@
 <link rel="stylesheet" href="/auction.css">
 <link rel="stylesheet" href="/chamber.css">
 <link rel="stylesheet" href="/elimination.css">
+<link rel="stylesheet" href="/obsidian.css?v=1">
 
 <style>
-#ffgcQuickAccess {
-  position: fixed !important;
-  bottom: 16px !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-  z-index: 2147483000 !important;
-  display: flex !important;
-  gap: 8px !important;
-  padding: 9px !important;
-  max-width: 96vw !important;
-  background: #10152b !important;
-  border: 1px solid #9675ff !important;
-  border-radius: 18px !important;
-  box-shadow: 0 8px 35px #000b !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-#ffgcQuickAccess button {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  padding: 12px !important;
-  border: 0 !important;
-  border-radius: 11px !important;
-  color: white !important;
-  font-size: 12px !important;
-  font-weight: 800 !important;
-  white-space: nowrap !important;
-  cursor: pointer !important;
-}
-
-#ffgcQuickAdmin {
-  background: linear-gradient(135deg,#a66cff,#6234cf) !important;
-}
-
-#ffgcQuickEconomy {
-  background: linear-gradient(135deg,#168d67,#07543d) !important;
-}
-
-#admin.ffgcAdminVisible {
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-body {
-  padding-bottom: 100px !important;
-}
-
 #economicEmpireOverlay {
   position: fixed;
   inset: 0;
@@ -846,18 +797,6 @@ body.economic-empire-open {
 
 <div id="toast" role="status"></div>
 
-<!-- FLOATING QUICK ACCESS -->
-
-<div id="ffgcQuickAccess">
-  <button type="button" id="ffgcQuickAdmin">
-    👑 GOD ADMIN
-  </button>
-
-  <button type="button" id="ffgcQuickEconomy">
-    💰 ECONOMIC EMPIRE
-  </button>
-</div>
-
 <!-- ECONOMIC EMPIRE OVERLAY -->
 
 <div
@@ -905,17 +844,20 @@ body.economic-empire-open {
     adminPanel.classList.remove('hidden');
     adminPanel.classList.add('ffgcAdminVisible');
 
+    document.querySelector('[data-v5-route="profile"]')?.click();
     adminPanel.scrollIntoView({
       behavior: 'smooth',
       block: 'start'
     });
   }
 
-  document.getElementById('ffgcQuickAdmin')
-    .addEventListener('click', openAdmin);
-
-  document.getElementById('adminBtn')
-    .addEventListener('click', openAdmin);
+  document.addEventListener('click', function(event) {
+    if (event.target.closest('#ffgcProfileAdmin')) {
+      document.getElementById('adminBtn')?.click();
+      openAdmin();
+    }
+    if (event.target.closest('#ffgcProfileEconomy')) openEconomy();
+  });
 
   if (location.hash === '#admin') {
     openAdmin();
@@ -943,9 +885,6 @@ body.economic-empire-open {
     overlay.classList.remove('is-open');
     document.body.classList.remove('economic-empire-open');
   }
-
-  document.getElementById('ffgcQuickEconomy')
-    .addEventListener('click', openEconomy);
 
   document.getElementById('openEconomicEmpire')
     .addEventListener('click', openEconomy);

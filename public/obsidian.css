@@ -1,0 +1,21 @@
+/* FFGC2K26 — Obsidian Eclipse. Cosmetic overrides only. */
+body.v5-body {--v5-bg:#080710;--v5-card:#191322;--v5-border:#49335d;--v5-cyan:#b788ff;--v5-purple:#d56bff;--v5-gold:#ef8ecb;background:radial-gradient(ellipse at 70% 0%,#52256b55,transparent 50%),radial-gradient(ellipse at 0% 80%,#4b203c33,transparent 55%),#080710!important;color:#f5eeff!important}
+body.v5-body .v5-sidebar,body.v5-body .v5-top {background:#100c1bdc!important;border-color:#50305f!important}
+body.v5-body .v5-brand span,body.v5-body .v5-kicker,body.v5-body .v5-hero h1 em {color:#d9a0ff!important}
+body.v5-body .v5-hero {background:radial-gradient(circle at 80% 20%,#9135b65e,transparent 44%),linear-gradient(125deg,#21132d,#100d1b 70%,#331333)!important;border-color:#8b49ac!important;box-shadow:0 20px 65px #0009,0 0 36px #9d39c51c!important}
+body.v5-body .panel,body.v5-body .v5-tile,body.v5-body .v5-player {border-color:#563366!important;background-color:#171120!important}
+body.v5-body .v5-nav-btn.active {background:linear-gradient(100deg,#582d78,#25142e)!important;border-color:#a85bce!important;box-shadow:inset 3px 0 #e69aff,0 0 18px #b349d033!important}
+body.v5-body .v5-bottom {background:#100b1cf5!important;border-top-color:#6c3688!important}
+body.v5-body .v5-bottom-btn.active {color:#e4a0ff!important}
+body.v5-body .v5-tile:hover,body.v5-body .v5-nav-btn:hover {border-color:#b56ada!important;box-shadow:0 0 20px #ae4bd02b!important}
+.ffgc-profile-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin:25px 0;padding:20px;border-radius:20px;background:linear-gradient(140deg,#150e20,#21132b);border:1px solid #714389;box-shadow:inset 0 0 24px #ac46dc16}
+.ffgc-profile-actions-heading{grid-column:1/-1;font-size:11px;font-weight:900;letter-spacing:2px;color:#d6a4f5}
+.ffgc-obsidian-btn{position:relative;isolation:isolate;overflow:hidden;display:flex;align-items:center;gap:13px;min-height:96px;padding:16px!important;text-align:left!important;border:1px solid #9851bb!important;border-radius:17px!important;color:#f9ecff!important;background:linear-gradient(132deg,#21132e 0%,#110d1b 42%,#3d174f 46%,#180e26 49%,#1b1128 100%)!important;box-shadow:inset 0 1px #e2b4ff30,0 7px 20px #0007,0 0 18px #a63de523!important;transition:transform .2s,box-shadow .2s!important}
+.ffgc-obsidian-btn:before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(125deg,transparent 0 29%,#a543da2b 30%,transparent 32% 57%,#d165fa52 58%,transparent 60% 100%);filter:drop-shadow(0 0 7px #bd53ff);opacity:.9}
+.ffgc-obsidian-btn:hover,.ffgc-obsidian-btn:focus-visible{transform:translateY(-2px);box-shadow:0 0 27px #ba54ff70,inset 0 0 17px #b04ff12e!important;outline:1px solid #d49bff}
+.ffgc-obsidian-btn:active{transform:scale(.98)}
+.ffgc-obsidian-icon{display:grid;place-items:center;flex:none;width:45px;height:45px;border-radius:12px;background:#62287c;color:#f1bbff;font-size:27px;box-shadow:0 0 20px #a544e477}
+.ffgc-obsidian-btn strong,.ffgc-obsidian-btn small{display:block}.ffgc-obsidian-btn strong{font-size:14px;letter-spacing:.5px}.ffgc-obsidian-btn small{font-size:11px;color:#d2b5e2;margin-top:7px}
+#myProfile #admin{margin-top:20px;background:#150f20!important;border:1px solid #854da4!important}
+@media(max-width:650px){.ffgc-profile-actions{grid-template-columns:1fr;padding:13px}.ffgc-obsidian-btn{min-height:83px}}
+@media(prefers-reduced-motion:reduce){.ffgc-obsidian-btn{transition:none!important}}

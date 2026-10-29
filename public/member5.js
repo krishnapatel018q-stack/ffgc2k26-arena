@@ -22,8 +22,7 @@
       "decisionChamber"
     ]],
     ["auction", "◆", "Auction", ["auctionHouse"]],
-    ["empire", "◈", "Empire", []],
-    ["spotlight", "✦", "Spotlight", ["spotlightSection"]],
+    ["spotlight", "✦", "Hall", ["spotlightSection"]],
     ["news", "▤", "News", ["announcements"]],
     ["profile", "◉", "Profile", ["myProfile", "supportMember"]]
   ];
@@ -1336,6 +1335,29 @@
       $("auctionCards")?.classList.add("v5-auction-grid");
       $("auctionWallet")?.classList.add("v5-auction-wallet");
       $("auctionMyRewards")?.classList.add("v5-rewards");
+    }
+
+    // Profile-only management shortcuts; keep the mobile nav unchanged.
+    const profileSection = $("myProfile");
+    const adminSection = $("admin");
+    if (profileSection) {
+      if (!$('ffgcProfileActions')) {
+        const actions = create('div', 'ffgc-profile-actions', `
+          <div class="ffgc-profile-actions-heading">✦ PRIVATE ACCESS PORTAL</div>
+          <button type="button" id="ffgcProfileEconomy" class="ffgc-obsidian-btn">
+            <span class="ffgc-obsidian-icon">◈</span>
+            <span><strong>ECONOMIC EMPIRE</strong><small>Enter the marketplace ↗</small></span>
+          </button>
+          <button type="button" id="ffgcProfileAdmin" class="ffgc-obsidian-btn">
+            <span class="ffgc-obsidian-icon">♛</span>
+            <span><strong>GOD ADMIN</strong><small>Authorized control center ↗</small></span>
+          </button>
+        `);
+        actions.id = 'ffgcProfileActions';
+        profileSection.appendChild(actions);
+      }
+      // Admin stays under Profile, not as a separate floating page.
+      if (adminSection) profileSection.appendChild(adminSection);
     }
 
     // Member navigation.
