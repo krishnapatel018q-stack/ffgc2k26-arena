@@ -1637,7 +1637,9 @@ const allowedFiles = new Set([
   'member5.css',
   'royale6.css',
   'obsidian.css',
-
+// FFGC OS Mobile Edition
+  'ffgc-os.js',
+  'ffgc-os.css',
   // Auction House
   'auction.js',
   'auction.css',
