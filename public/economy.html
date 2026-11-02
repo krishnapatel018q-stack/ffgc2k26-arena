@@ -1,1 +1,68 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FFGC2K26 | Economic Empire</title><link rel="stylesheet" href="/economy.css"></head><body><header><div class="brand">👑 FFGC2K26 | ECONOMIC EMPIRE</div><a href="/">← Back to Arena</a></header><main><h1>💰 Economic Empire</h1><p>Trade • Invest • Build • Grow — fictional FC only, no real money.</p><p class="notice">This is an admin-controlled virtual market. Future price schedules are private; past price movements are visible. Existing ranking points and Auction Coins are separate.</p><div id="status"></div><div id="loginNotice" class="card">🔐 Login using your existing private member ID in <a href="/#myProfile">My Profile</a>, then return here.</div><div id="memberApp" class="hidden"><div class="tabs" id="tabs"><button data-tab="overview">Overview</button><button data-tab="market">📈 Stocks</button><button data-tab="business">🏢 Businesses</button><button data-tab="shop">🛒 Marketplace</button><button data-tab="trading">🤝 Trading</button><button data-tab="rankings">🏆 Rankings</button><button data-tab="history">📜 History</button></div><div id="content"></div></div></main><script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script><script src="/economy.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070d18">
+  <title>FFGC2K26 | Economic Empire</title>
+  <link rel="stylesheet" href="/economy.css?v=4">
+</head>
+<body>
+
+<header>
+  <div class="brand">✦ FFGC2K26 / ECONOMIC EMPIRE</div>
+  <a href="/" id="backToArena">← Back to Arena</a>
+</header>
+
+<main>
+  <div class="terminal">
+    <div class="terminal-top">
+      <div>
+        <span class="terminal-kicker">THE VIRTUAL FINANCIAL ECOSYSTEM</span>
+        <h1>Economic Empire</h1>
+        <p>Trade · Invest · Build · Grow</p>
+      </div>
+      <div class="market-badge open">FC VIRTUAL MARKET</div>
+    </div>
+  </div>
+
+  <p class="notice">
+    Virtual FC only. No real money, deposits or withdrawals.
+    Ranking points and Auction Coins remain separate.
+  </p>
+
+  <div id="status"></div>
+
+  <div id="loginNotice" class="card">
+    🔐 Log in with your existing private member ID in
+    <a href="/#myProfile">My Profile</a>, then return here.
+  </div>
+
+  <div id="memberApp" class="hidden">
+    <div class="tabs" id="tabs">
+      <button data-tab="overview">Overview</button>
+      <button data-tab="market">📈 Stocks</button>
+      <button data-tab="business">🏢 Businesses</button>
+      <button data-tab="shop">🛒 Marketplace</button>
+      <button data-tab="trading">🤝 Trading</button>
+      <button data-tab="rankings">🏆 Rankings</button>
+      <button data-tab="history">📜 History</button>
+    </div>
+
+    <div id="content"></div>
+  </div>
+</main>
+
+<script>
+document.getElementById('backToArena').addEventListener('click', function(e) {
+  if (window.parent !== window) {
+    e.preventDefault();
+    window.parent.postMessage('ffgc-economy-close', location.origin);
+  }
+});
+</script>
+
+<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="/economy.js?v=4"></script>
+</body>
+</html>
