@@ -32,17 +32,90 @@ case 'rankings':return `<div class="card">${state.rankings.map((r,i)=>`<div clas
 case 'history':return `<h2>🌍 Automatic Market Events</h2><div class="card">${(state.marketEvents||[]).map(x=>`<p>${esc(x.title)} · ${new Date(x.at).toLocaleString()}</p>`).join('')||'No events yet'}</div><h2>📢 Recent Market Activity</h2><div class="card">${(state.activity||[]).map(x=>`<p>${esc(x.side)} ${x.quantity} shares · ${esc(x.company)} · ${new Date(x.at).toLocaleString()}</p>`).join('')||'No trades yet'}</div><h2>My Transactions</h2><div class="card">${m.history.map(x=>`<div class="row"><span>${esc(x.action)} — ${esc(x.detail)}</span><small>${new Date(x.at).toLocaleString()}</small></div>`).join('')||'No transactions yet'}</div><h2>Stock Orders</h2><div class="card">${m.orders.map(o=>`<p>${esc(o.side)} ${o.quantity} shares @ ${fmt(o.price)} — ${esc(o.status)}</p>`).join('')||'No orders'}</div>`;
 }}
 function adminPage(){const e=state.admin;switch(tab){
-case 'overview':return `<p class="notice">Scheduled trading hours: 12:00 PM–12:00 AM IST daily. Manual market switch can pause trading.</p><div class="grid"><div class="card"><h3>Economy</h3>${state.enabled?'🟢 ON':'🔴 OFF'}</div><div class="card"><h3>Market</h3>${state.marketOpen?'🟢 OPEN':'🔴 CLOSED'}</div><div class="card"><h3>Companies</h3>${state.companies.length}</div><div class="card"><h3>Pending Orders</h3>${e.orders.filter(x=>x.status==='pending').length}</div><div class="card"><h3>FC Circulation</h3>${fmt(e.settings.fcCirculation)}</div><div class="card"><h3>Maintenance Locks</h3>${e.settings.lockedBusinesses}</div><div class="card"><h3>Auto Market</h3>${state.autoMarket?'🟢 ON':'🔴 OFF'}</div></div>`;
-case 'companies':return `<div class="card"><h2>Create Company</h2><form id="companyForm"><input name="name" placeholder="Company name" required maxlength="70"><input type="number" name="price" placeholder="Share price FC" min="1" required><input type="number" name="supply" placeholder="Available shares" min="0" required><button>Create Company</button></form></div>${state.companies.map(c=>`<div class="card"><div class="row"><h3>${esc(c.name)} · ${fmt(c.price)}</h3><span>${c.supply} shares</span></div>${chart(c.history)}${btn('Freeze','freeze',c.id)} ${btn('Unfreeze','unfreeze',c.id)} ${btn('Edit Price / Supply','edit-company',c.id)} ${btn('Archive','archive-company',c.id)}</div>`).join('')}`;
-case 'scheduler':return `<div class="card"><h2>🔐 Secret Smooth Market Scheduler</h2><p>Only God Admin sees upcoming schedules. Members see actual price history after execution.</p><form id="scheduleForm"><label>Company<select name="companyId" required>${state.companies.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select></label><label>Start time (your device's local time)<input type="datetime-local" name="startAt" required></label><label>Target price (FC)<input type="number" name="target" min="1" required></label><label>Movement duration (minutes)<input type="number" name="minutes" value="10" min="1" max="1440" required></label><button>Schedule Smooth Movement</button></form></div><div class="card"><h2>Scheduled Movements</h2>${e.schedules.slice().reverse().map(x=>`<div class="row"><span>${esc(co(x.companyId)?.name||'Archived')} → ${fmt(x.target)}<br><small>${new Date(x.startAt).toLocaleString()} · ${x.durationMs/60000} min · ${esc(x.status)}</small></span>${x.status==='pending'?btn('Cancel','cancel-schedule',x.id):''}</div>`).join('')||'No schedules'}</div>`;
-case 'cash':return `<div class="card"><h2>Manage FC</h2><form id="cashForm"><label>Member<select name="memberId">${state.members.map(x=>`<option value="${esc(x.id)}">${esc(x.name)} — ${fmt(x.cash)}</option>`).join('')}</select></label><label>Action<select name="mode"><option value="add">Add FC</option><option value="subtract">Deduct FC</option></select></label><label>Amount<input name="amount" type="number" min="0" required></label><button>Apply</button></form></div>`;
-case 'orders':return `<h2>Pending Buy/Sell Orders</h2><div class="card">${e.orders.filter(x=>x.status==='pending').map(o=>`<div class="row"><span>${esc(name(o.memberId))} · ${esc(o.side)} ${o.quantity} shares · ${fmt(o.cost)} locked</span><span>${btn('Approve','approve-order',o.id)} ${btn('Reject','reject-order',o.id)}</span></div>`).join('')||'No pending orders'}</div><h2>Member FC Transfers</h2><div class="card">${e.trades.filter(x=>x.status==='pending').map(t=>`<div class="row"><span>${esc(name(t.fromId))} → ${esc(name(t.toId))}: ${fmt(t.amount)}</span><span>${btn('Approve','approve-trade',t.id)} ${btn('Reject','reject-trade-admin',t.id)}</span></div>`).join('')||'No pending transfers'}</div>`;
-case 'business':return `<div class="card"><h2>Add Business Type</h2><form id="businessForm"><input name="name" placeholder="Business name" required><input name="price" type="number" min="0" placeholder="Price FC" required><input name="income" type="number" min="0" placeholder="Income per week" required><input name="maintenance" type="number" min="0" placeholder="Maintenance per week" required><button>Add Business</button></form></div><div class="card">${state.businessTypes.map(t=>`<div class="row">${esc(t.name)} · ${fmt(t.price)} ${btn('Edit','edit-business',t.id)} ${btn('Archive','archive-business',t.id)}</div>`).join('')}</div>`;
-case 'shop':return `<div class="card"><h2>Add Marketplace Item</h2><form id="productForm"><input name="name" placeholder="Item name" required><input name="price" type="number" min="0" placeholder="Price FC" required><input name="stock" type="number" min="0" placeholder="Stock" required><button>Add Item</button></form></div><div class="card">${state.products.map(t=>`<div class="row">${esc(t.name)} · ${fmt(t.price)} ${btn('Edit','edit-product',t.id)} ${btn('Archive','archive-product',t.id)}</div>`).join('')}</div>`;
-case 'settings':return `<div class="card"><h2>Market Settings</h2><form id="settingsForm"><label><input type="checkbox" name="enabled" ${state.enabled?'checked':''} style="width:auto"> Economy Enabled</label><label><input type="checkbox" name="marketOpen" ${state.marketOpen?'checked':''} style="width:auto"> Market Open</label><label><input type="checkbox" name="autoMarket" ${state.autoMarket?'checked':''} style="width:auto"> Automatic Market Price Movement</label><label><input type="checkbox" name="approvalMode" ${state.approvalMode?'checked':''} style="width:auto"> Require God Admin Approval for Stock Orders</label><button>Save Settings</button></form></div>`;
-case 'holdings':return `<h2>👑 All Member Stock Holdings</h2>${e.holdings.map(h=>`<div class="card"><h3>${esc(h.name)}</h3>${Object.entries(h.shares).filter(([id,n])=>n>0).map(([id,n])=>`<p>${esc(co(id)?.name||'Archived company')}: <b>${n} shares</b></p>`).join('')||'<p>No shares held</p>'}<details><summary>Recent orders (${h.orders.length})</summary>${h.orders.slice().reverse().map(o=>`<p>${esc(o.side)} ${o.quantity} ${esc(co(o.companyId)?.name||'Company')} @ ${fmt(o.price)} — ${esc(o.status)} — ${new Date(o.at).toLocaleString()}</p>`).join('')}</details></div>`).join('')}`;
-case 'history':return `<div class="card">${e.history.map(x=>`<div class="row">${esc(x.action)} · ${esc(name(x.memberId))} · ${esc(x.detail)}<small>${new Date(x.at).toLocaleString()}</small></div>`).join('')||'No activity'}</div>`;
-}}
+case 'overview': {
+  const historyTimes = state.companies
+    .flatMap(c => (c.history || []).slice(-1).map(p => Date.parse(p.at)))
+    .filter(Number.isFinite);
+
+  const latestTick = historyTimes.length
+    ? new Date(Math.max(...historyTimes)).toLocaleString('en-IN')
+    : 'No saved ticks yet';
+
+  const historyPoints = state.companies.reduce(
+    (total, c) => total + (c.history || []).length,
+    0
+  );
+
+  const frozenCompanies = state.companies.filter(c => c.frozen).length;
+
+  const activeSchedules = e.schedules.filter(
+    s => s.status === 'pending' || s.status === 'running'
+  ).length;
+
+  return `
+    <p class="notice">
+      Trading hours: 8:00 AM–10:00 PM IST.
+      Virtual FC market only.
+    </p>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Economy Status</h3>
+        ${state.enabled ? '🟢 ONLINE' : '🔴 DISABLED'}
+      </div>
+
+      <div class="card">
+        <h3>Market Status</h3>
+        ${state.marketOpen ? '🟢 OPEN' : '🔴 CLOSED'}
+      </div>
+
+      <div class="card">
+        <h3>Companies</h3>
+        ${state.companies.length}
+      </div>
+
+      <div class="card">
+        <h3>Pending Orders</h3>
+        ${e.orders.filter(x => x.status === 'pending').length}
+      </div>
+
+      <div class="card">
+        <h3>FC Circulation</h3>
+        ${fmt(e.settings.fcCirculation)}
+      </div>
+
+      <div class="card">
+        <h3>Maintenance Locks</h3>
+        ${e.settings.lockedBusinesses}
+      </div>
+
+      <div class="card">
+        <h3>Auto Market Engine</h3>
+        ${state.autoMarket ? '🟢 ENABLED' : '🔴 DISABLED'}
+      </div>
+
+      <div class="card">
+        <h3>Saved Chart Points</h3>
+        ${historyPoints.toLocaleString('en-IN')}
+      </div>
+
+      <div class="card">
+        <h3>Frozen Companies</h3>
+        ${frozenCompanies}
+      </div>
+
+      <div class="card">
+        <h3>Active Schedules</h3>
+        ${activeSchedules}
+      </div>
+
+      <div class="card">
+        <h3>Latest Saved Market Tick</h3>
+        <small>${esc(latestTick)}</small>
+      </div>
+    </div>
+  `;
+}
 
 function candleData(history,interval){
  const spans={'1m':60,'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400,'1w':604800};
