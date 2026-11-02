@@ -1,0 +1,273 @@
+/* FFGC OS — MOBILE EDITION */
+:root {
+  --os-bg: #071019;
+  --os-panel: #101d2b;
+  --os-border: rgba(148, 180, 210, .18);
+  --os-text: #eef6ff;
+  --os-muted: #91a5b9;
+  --os-accent: #68d9ff;
+}
+
+#ffgcOSDock {
+  position: fixed;
+  z-index: 2147482000;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(440px, calc(100% - 24px));
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 5px;
+  padding: 9px;
+  border: 1px solid var(--os-border);
+  border-radius: 22px;
+  background: rgba(8, 19, 31, .94);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 45px #0009;
+}
+
+#ffgcOSDock button {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  color: var(--os-muted);
+  background: transparent;
+  border-radius: 14px;
+  padding: 9px 4px;
+  font: 600 11px system-ui;
+  cursor: pointer;
+}
+
+#ffgcOSDock button span {
+  display: block;
+  font-size: 21px;
+  margin-bottom: 3px;
+}
+
+#ffgcOSDock button:active,
+#ffgcOSDock button.active {
+  color: var(--os-accent);
+  background: #193044;
+}
+
+#ffgcOSLauncher {
+  position: fixed;
+  z-index: 2147482500;
+  inset: 0;
+  display: none;
+  overflow-y: auto;
+  padding: max(24px, env(safe-area-inset-top)) 18px 110px;
+  color: var(--os-text);
+  background:
+    radial-gradient(ellipse at 15% 5%, #12415b 0, transparent 42%),
+    radial-gradient(ellipse at 90% 55%, #22234c 0, transparent 42%),
+    var(--os-bg);
+  font-family: system-ui, sans-serif;
+}
+
+#ffgcOSLauncher.open {
+  display: block;
+  animation: ffgcOSIn .22s ease-out;
+}
+
+@keyframes ffgcOSIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ffgcOSHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0 28px;
+}
+
+.ffgcOSBrand {
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: var(--os-accent);
+  font-weight: 800;
+}
+
+.ffgcOSDate {
+  color: var(--os-muted);
+  font-size: 12px;
+}
+
+.ffgcOSClose {
+  border: 1px solid var(--os-border);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  color: white;
+  background: #ffffff12;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.ffgcOSWelcome {
+  margin: 20px 0 24px;
+}
+
+.ffgcOSWelcome small {
+  color: var(--os-accent);
+  letter-spacing: 2px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.ffgcOSWelcome h2 {
+  margin: 7px 0;
+  font-size: clamp(30px, 8vw, 44px);
+  line-height: 1.05;
+  color: white;
+}
+
+.ffgcOSWelcome p {
+  margin: 8px 0;
+  color: var(--os-muted);
+  font-size: 13px;
+}
+
+.ffgcOSSearch {
+  display: flex;
+  gap: 9px;
+  padding: 13px 15px;
+  margin: 20px 0 30px;
+  border: 1px solid var(--os-border);
+  border-radius: 16px;
+  background: #ffffff0b;
+}
+
+.ffgcOSSearch input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: white;
+  background: transparent;
+  font-size: 14px;
+}
+
+.ffgcOSSearch input::placeholder {
+  color: #8095a9;
+}
+
+.ffgcOSLabel {
+  margin: 26px 0 13px;
+  color: var(--os-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.ffgcOSGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ffgcOSApp {
+  min-height: 104px;
+  padding: 16px 8px;
+  border: 1px solid var(--os-border);
+  border-radius: 19px;
+  background: linear-gradient(145deg, #ffffff12, #ffffff05);
+  color: white;
+  text-align: center;
+  cursor: pointer;
+  transition: transform .16s, border-color .16s;
+}
+
+.ffgcOSApp:active {
+  transform: scale(.95);
+  border-color: var(--os-accent);
+}
+
+.ffgcOSApp .appIcon {
+  display: block;
+  font-size: 29px;
+  margin-bottom: 9px;
+}
+
+.ffgcOSApp .appName {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ffgcOSWidget {
+  margin-top: 24px;
+  padding: 17px;
+  border: 1px solid var(--os-border);
+  border-radius: 19px;
+  background: #ffffff0b;
+}
+
+.ffgcOSWidget h3 {
+  margin: 0 0 10px;
+  color: white;
+  font-size: 14px;
+}
+
+.ffgcOSWidget p {
+  margin: 0;
+  color: var(--os-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.ffgcOSNotice {
+  padding: 11px 0;
+  border-top: 1px solid var(--os-border);
+  color: #dcecff;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ffgcOSNotice:first-of-type {
+  border-top: 0;
+}
+
+#ffgcOSToast {
+  position: fixed;
+  z-index: 2147483000;
+  left: 50%;
+  bottom: 95px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 30px);
+  padding: 11px 16px;
+  border: 1px solid var(--os-border);
+  border-radius: 13px;
+  background: #102437;
+  color: white;
+  font: 12px system-ui;
+  display: none;
+}
+
+@media (min-width: 760px) {
+  #ffgcOSLauncher {
+    padding-left: max(7vw, 35px);
+    padding-right: max(7vw, 35px);
+  }
+
+  .ffgcOSGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  #ffgcOSDock {
+    width: 390px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #ffgcOSLauncher.open {
+    animation: none;
+  }
+
+  .ffgcOSApp {
+    transition: none;
+  }
+  }
