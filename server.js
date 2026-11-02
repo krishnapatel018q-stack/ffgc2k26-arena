@@ -1477,26 +1477,102 @@ function econNotify(e,memberId,message){e.notifications.unshift({id:crypto.rando
 function econBusinessLevel(owned){return Math.max(1,Math.min(5,owned.level||1));}
 function econMaintenance(t,owned){return Math.round(t.maintenance*(1+.25*(econBusinessLevel(owned)-1)));}
 function econIncome(t,owned){return Math.round(t.income*(1+.3*(econBusinessLevel(owned)-1)));}
-function econAutoMarket(e,now){
- if(!econMarketOpen(e)||e.autoMarket===false)return false;
- const tick=10000, steps=Math.min(360,Math.floor((now-e.lastAutoTick)/tick));if(steps<=0)return false;
- // Server-side movement persists across redeploys; only completed market-open ticks are applied.
- e.lastAutoTick=now;let changed=false;
- const hourKey=Math.floor((now+330*60000)/3600000);
- if(e.lastEventHour!==hourKey){
-   e.lastEventHour=hourKey;
-   const categories=['Technology Boost','Retail Momentum','Energy Slowdown','Market Stability'];
-   const eventName=categories[hourKey%categories.length];
-   e.marketEvents.unshift({at:now,title:eventName});e.marketEvents=e.marketEvents.slice(0,30);
-   econRecord(e,'market_event',null,eventName);changed=true;
- }
+function econAutoMarket(e, now) {
+  // Respect the existing 8 AM–10 PM IST market hours.
+  if (!econMarketOpen(e) || e.autoMarket === false) {
+    e.lastAutoTick = now;
+    return false;
+  }
 
- for(const co of e.companies){if(co.archived||co.frozen||e.schedules.some(sc=>sc.companyId===co.id&&sc.status==='running'))continue;
-  const old=co.price;const seed=crypto.createHash('sha256').update(co.id+':'+Math.floor(now/tick)).digest().readUInt32BE(0)/4294967295;
-  const drift=(seed-.5)*.008;const next=Math.max(1,Math.round(co.price*(1+drift)));
-  if(next!==old){co.price=next;co.history ||= [];co.history.push({at:new Date(now).toISOString(),price:next});if(co.history.length>2000)co.history.splice(0,co.history.length-2000);changed=true;}
- }
- return changed;
+  const tick = 10000;
+  const previous = Number(e.lastAutoTick) || now;
+
+  // Process up to one hour of missed ticks per settlement.
+  const steps = Math.min(
+    360,
+    Math.max(0, Math.floor((now - previous) / tick))
+  );
+
+  if (steps <= 0) return false;
+
+  let changed = false;
+  const firstTick = now - (steps * tick);
+
+  const hourKey = Math.floor((now + 330 * 60000) / 3600000);
+
+  if (e.lastEventHour !== hourKey) {
+    e.lastEventHour = hourKey;
+
+    const categories = [
+      'Technology Boost',
+      'Retail Momentum',
+      'Energy Slowdown',
+      'Market Stability'
+    ];
+
+    const eventName = categories[hourKey % categories.length];
+
+    e.marketEvents ||= [];
+    e.marketEvents.unshift({
+      at: now,
+      title: eventName
+    });
+
+    e.marketEvents = e.marketEvents.slice(0, 30);
+
+    econRecord(e, 'market_event', null, eventName);
+    changed = true;
+  }
+
+  for (const co of e.companies) {
+    if (
+      co.archived ||
+      co.frozen ||
+      e.schedules.some(
+        sc => sc.companyId === co.id && sc.status === 'running'
+      )
+    ) {
+      continue;
+    }
+
+    co.history ||= [];
+
+    for (let i = 1; i <= steps; i++) {
+      const tickAt = firstTick + (i * tick);
+      const tickNumber = Math.floor(tickAt / tick);
+
+      const seed = crypto
+        .createHash('sha256')
+        .update(co.id + ':' + tickNumber)
+        .digest()
+        .readUInt32BE(0) / 4294967295;
+
+      // Small simulated movement; no real-money market data.
+      const drift = (seed - 0.5) * 0.008;
+
+      const next = Math.max(
+        1,
+        Math.round(co.price * (1 + drift))
+      );
+
+      co.price = next;
+
+      co.history.push({
+        at: new Date(tickAt).toISOString(),
+        price: next
+      });
+
+      changed = true;
+    }
+
+    if (co.history.length > 2000) {
+      co.history.splice(0, co.history.length - 2000);
+    }
+  }
+
+  e.lastAutoTick = now;
+
+  return changed;
 }
 function econSettle(){
   if(!db.economy)return false;
