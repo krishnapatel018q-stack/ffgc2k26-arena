@@ -573,8 +573,8 @@ async function api(req, res, url) {
       }else if(op==='company'){
         const price=econNum(b.price),supply=econNum(b.supply);if(!String(b.name||'').trim()||!price||supply===null)return bad(res,'Invalid company');
         const co=b.id?e.companies.find(x=>x.id===b.id):null;
-        if(co){co.name=String(b.name).slice(0,70);co.price=price;co.supply=supply;co.history.push({at:new Date().toISOString(),price});}
-        else e.companies.push({id:crypto.randomUUID(),name:String(b.name).slice(0,70),price,supply,history:[{at:new Date().toISOString(),price}],frozen:false});
+        if(co){co.name=String(b.name).slice(0,70);co.price=price;co.supply=supply;co.lastTickAt=Date.now();co.history.push({at:new Date().toISOString(),price});}
+        else e.companies.push({id:crypto.randomUUID(),name:String(b.name).slice(0,70),price,supply,history:[{at:new Date().toISOString(),price}],lastTickAt:Date.now(),frozen:false});
       }else if(op==='company-control'){
         const co=e.companies.find(x=>x.id===b.id);if(!co)return bad(res,'Company missing');
         if(b.mode==='freeze')co.frozen=true;else if(b.mode==='unfreeze')co.frozen=false;else if(b.mode==='archive')co.archived=true;else return bad(res,'Invalid mode');
@@ -1457,7 +1457,7 @@ function economyStore(){
   e.autoMarket ??= true; e.marketEvents ||= []; e.notifications ||= []; e.missions ||= {}; e.lastAutoTick ||= Date.now();
   if(e.seedVersion<1){
     const companySeeds=[['Royal Crown Industries',500,100],['Diamond Empire Ltd.',450,120],['Thunderbolt Energy',320,150],['NovaTech Solutions',280,180],['Imperial Banking Corp.',250,200],['Phoenix Motors',220,220],['CyberCore Technologies',180,250],['Skyline Real Estate',150,300],['MegaMart Retail',120,350],['GreenFuture Energy',100,400],['PixelVerse Gaming',75,500],['StarLink Entertainment',50,600]];
-    for(const [name,price,supply] of companySeeds)if(!e.companies.some(x=>x.name.toLowerCase()===name.toLowerCase()))e.companies.push({id:crypto.randomUUID(),name,price,supply,history:[{at:new Date().toISOString(),price}],frozen:false});
+    for(const [name,price,supply] of companySeeds)if(!e.companies.some(x=>x.name.toLowerCase()===name.toLowerCase()))e.companies.push({id:crypto.randomUUID(),name,price,supply,history:[{at:new Date().toISOString(),price}],lastTickAt:Date.now(),frozen:false});
     const businessSeeds=[['Royal Café',8000,400],['Gaming Lounge',12000,650],['Premium Restaurant',18000,950],['Shopping Complex',25000,1300],['Luxury Hotel',40000,2100],['Finance Corporation',60000,3200],['Industrial Factory',85000,4500],['Diamond Corporation',120000,6500],['Royal Business Empire',200000,11000]];
     for(const [name,price,income] of businessSeeds)if(!e.businessTypes.some(x=>x.name.toLowerCase()===name.toLowerCase()))e.businessTypes.push({id:crypto.randomUUID(),name,price,income,maintenance:Math.round(income*.2)});
     const productSeeds=[['FC Bonus Pack',1500,'bonus',1],['Trading Pass',2500,'trading',7],['Banking Plus',4000,'analytics',0],['Business Booster',6000,'business_boost',7],['VIP Investor Badge',10000,'vip_badge',30],['Empire Prestige',25000,'prestige',0]];
@@ -1467,6 +1467,7 @@ function economyStore(){
   if(e.seedVersion<2){for(const t of e.businessTypes)if(!t.maintenance)t.maintenance=Math.round(t.income*.2);e.seedVersion=2;}
   for(const k of ['companies','businessTypes','businesses','products','items','trades','orders','schedules','history'])e[k] ||= [];
   e.accounts ||= {};
+  for(const co of e.companies){co.history ||= [];co.lastTickAt ||= (co.history.at(-1)?.at ? Date.parse(co.history.at(-1).at) : Date.now());}
   for(const m of db.members) if(!e.accounts[m.id])e.accounts[m.id]={cash:e.initialCash??2000,shares:{}};
   return e;
 }
@@ -1481,7 +1482,7 @@ function econAutoMarket(e,now){
  if(!econMarketOpen(e)||e.autoMarket===false)return false;
  const tick=10000, steps=Math.min(360,Math.floor((now-e.lastAutoTick)/tick));if(steps<=0)return false;
  // Server-side movement persists across redeploys; only completed market-open ticks are applied.
- e.lastAutoTick=now;let changed=false;
+ e.lastAutoTick=now;let changed=true;
  const hourKey=Math.floor((now+330*60000)/3600000);
  if(e.lastEventHour!==hourKey){
    e.lastEventHour=hourKey;
@@ -1492,9 +1493,11 @@ function econAutoMarket(e,now){
  }
 
  for(const co of e.companies){if(co.archived||co.frozen||e.schedules.some(sc=>sc.companyId===co.id&&sc.status==='running'))continue;
-  const old=co.price;const seed=crypto.createHash('sha256').update(co.id+':'+Math.floor(now/tick)).digest().readUInt32BE(0)/4294967295;
+  const seed=crypto.createHash('sha256').update(co.id+':'+Math.floor(now/tick)).digest().readUInt32BE(0)/4294967295;
   const drift=(seed-.5)*.008;const next=Math.max(1,Math.round(co.price*(1+drift)));
-  if(next!==old){co.price=next;co.history ||= [];co.history.push({at:new Date(now).toISOString(),price:next});if(co.history.length>2000)co.history.splice(0,co.history.length-2000);changed=true;}
+  // Record a point on every market tick, even when rounding keeps the price flat.
+  co.price=next;co.lastTickAt=now;co.history ||= [];co.history.push({at:new Date(now).toISOString(),price:next});
+  if(co.history.length>2000)co.history.splice(0,co.history.length-2000);
  }
  return changed;
 }
@@ -1509,7 +1512,7 @@ function econSettle(){
     if(sc.status==='pending'){sc.status='running';sc.from=co.price;changed=true;}
     const progress=Math.min(1,Math.max(0,(now-sc.startAt)/Math.max(1000,sc.durationMs)));
     const next=Math.max(1,Math.round(sc.from+(sc.target-sc.from)*progress));
-    if(next!==co.price){co.price=next;co.history ||= [];co.history.push({at:new Date(now).toISOString(),price:next});if(co.history.length>2000)co.history.shift();changed=true;}
+    if(next!==co.price||co.lastTickAt!==now){co.price=next;co.lastTickAt=now;co.history ||= [];co.history.push({at:new Date(now).toISOString(),price:next});if(co.history.length>2000)co.history.shift();changed=true;}
     if(progress===1){sc.status='done';econRecord(e,'scheduled_price',null,co.name+' reached '+co.price+' FC');changed=true;}
   }
   // One payout per due cycle, only after available FC pays maintenance first.
@@ -1535,7 +1538,7 @@ function economyView(e,member,admin){
  const memberBusinesses=e.businesses.filter(x=>member&&x.memberId===member.id);
  const networth=account?account.cash+companies.reduce((sum,c)=>sum+(account.shares[c.id]||0)*c.price,0)+memberBusinesses.reduce((sum,b)=>sum+(e.businessTypes.find(t=>t.id===b.typeId)?.price||0),0):0;
  const ranks=db.members.map(m=>{const a=e.accounts[m.id]||{cash:0,shares:{}};const items=e.items.filter(x=>x.memberId===m.id);const badges=[items.some(x=>x.effect==='vip_badge'&&x.expiresAt>Date.now())?'👑 VIP':'',items.some(x=>x.effect==='prestige')?'💎 Prestige':''].filter(Boolean).join(' ');return {name:m.name,badges,netWorth:a.cash+companies.reduce((sum,c)=>sum+(a.shares[c.id]||0)*c.price,0)+e.businesses.filter(b=>b.memberId===m.id).reduce((sum,b)=>sum+(e.businessTypes.find(t=>t.id===b.typeId)?.price||0),0)}}).sort((a,b)=>b.netWorth-a.netWorth);
- return {enabled:e.enabled,marketOpen:econMarketOpen(e),approvalMode:e.approvalMode,member:member?{id:member.id,name:member.name,account,netWorth:networth,businesses:memberBusinesses,notifications:e.notifications.filter(x=>x.memberId===member.id).slice(0,30),missions:e.missions[member.id+':'+new Date(Date.now()+330*60000).toISOString().slice(0,10)]||[],items:e.items.filter(x=>x.memberId===member.id),orders:e.orders.filter(x=>x.memberId===member.id),trades:e.trades.filter(x=>x.fromId===member.id||x.toId===member.id),history:e.history.filter(x=>x.memberId===member.id).slice(0,60),achievements:[...(e.orders.some(x=>x.memberId===member.id&&x.side==='buy'&&x.status==='approved')?['🏅 First Investor']:[]),...(memberBusinesses.length?['🏢 Business Tycoon']:[]),...(networth>=100000?['💎 Millionaire Club']:[]),...(e.orders.filter(x=>x.memberId===member.id&&x.status==='approved').length>=50?['📈 Market Legend']:[])]}:null,companies,businessTypes:e.businessTypes.filter(x=>!x.archived),autoMarket:e.autoMarket,marketEvents:e.marketEvents.slice(0,12),products:e.products.filter(x=>!x.archived),rankings:ranks.slice(0,30),tradeMembers:member?db.members.filter(x=>x.id!==member.id).map(x=>({id:x.id,name:x.name})):[],activity:e.orders.filter(x=>x.status==='approved').slice(-20).reverse().map(x=>({company:e.companies.find(c=>c.id===x.companyId)?.name||'Company',side:x.side,quantity:x.quantity,at:x.at})),members:admin?db.members.map(m=>({id:m.id,name:m.name,cash:e.accounts[m.id]?.cash||0})):undefined,admin:admin?{schedules:e.schedules,orders:e.orders,trades:e.trades,history:e.history.slice(0,200),businesses:e.businesses,holdings:db.members.map(m=>({name:m.name,id:m.id,shares:e.accounts[m.id]?.shares||{},orders:e.orders.filter(o=>o.memberId===m.id).slice(-50)})),items:e.items,settings:{initialCash:e.initialCash,autoMarket:e.autoMarket,fcCirculation:Object.values(e.accounts).reduce((n,a)=>n+a.cash,0),lockedBusinesses:e.businesses.filter(b=>b.locked).length}}:undefined};
+ return {enabled:e.enabled,marketOpen:econMarketOpen(e),approvalMode:e.approvalMode,member:member?{id:member.id,name:member.name,account,netWorth:networth,businesses:memberBusinesses,notifications:e.notifications.filter(x=>x.memberId===member.id).slice(0,30),missions:e.missions[member.id+':'+new Date(Date.now()+330*60000).toISOString().slice(0,10)]||[],items:e.items.filter(x=>x.memberId===member.id),orders:e.orders.filter(x=>x.memberId===member.id),trades:e.trades.filter(x=>x.fromId===member.id||x.toId===member.id),history:e.history.filter(x=>x.memberId===member.id).slice(0,60),achievements:[...(e.orders.some(x=>x.memberId===member.id&&x.side==='buy'&&x.status==='approved')?['🏅 First Investor']:[]),...(memberBusinesses.length?['🏢 Business Tycoon']:[]),...(networth>=100000?['💎 Millionaire Club']:[]),...(e.orders.filter(x=>x.memberId===member.id&&x.status==='approved').length>=50?['📈 Market Legend']:[])]}:null,companies,businessTypes:e.businessTypes.filter(x=>!x.archived),autoMarket:e.autoMarket,marketEvents:e.marketEvents.slice(0,12),products:e.products.filter(x=>!x.archived),rankings:ranks.slice(0,30),tradeMembers:member?db.members.filter(x=>x.id!==member.id).map(x=>({id:x.id,name:x.name})):[],activity:e.orders.filter(x=>x.status==='approved').slice(-20).reverse().map(x=>({company:e.companies.find(c=>c.id===x.companyId)?.name||'Company',side:x.side,quantity:x.quantity,at:x.at})),members:admin?db.members.map(m=>({id:m.id,name:m.name,cash:e.accounts[m.id]?.cash||0})):undefined,admin:admin?{schedules:e.schedules,orders:e.orders,trades:e.trades,history:e.history.slice(0,200),businesses:e.businesses,marketHealth:e.companies.filter(c=>!c.archived).map(c=>{const scheduled=e.schedules.some(sc=>sc.companyId===c.id&&sc.status==='running');const last=Number(c.lastTickAt||0);const status=c.frozen?'FROZEN':scheduled?'SCHEDULED':!econMarketOpen(e)?'MARKET CLOSED':e.autoMarket===false?'ENGINE PAUSED':!last||Date.now()-last>45000?'STALE':'HEALTHY';return {id:c.id,name:c.name,price:c.price,frozen:!!c.frozen,scheduled,historyCount:(c.history||[]).length,lastTickAt:last?new Date(last).toISOString():null,lastHistoryAt:c.history?.at(-1)?.at||null,status};}),holdings:db.members.map(m=>({name:m.name,id:m.id,shares:e.accounts[m.id]?.shares||{},orders:e.orders.filter(o=>o.memberId===m.id).slice(-50)})),items:e.items,settings:{initialCash:e.initialCash,autoMarket:e.autoMarket,fcCirculation:Object.values(e.accounts).reduce((n,a)=>n+a.cash,0),lockedBusinesses:e.businesses.filter(b=>b.locked).length}}:undefined};
 }
 
 // STATIC WEBSITE FILES
