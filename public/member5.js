@@ -1492,6 +1492,7 @@
     const hash = (location.hash || "").slice(1);
 
     const legacy = {
+      admin: "profile",
       leaderboard: "ranks",
       tasks: "events",
       polls: "events",
