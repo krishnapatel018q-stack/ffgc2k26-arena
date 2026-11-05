@@ -235,6 +235,18 @@ function memberSession(req) {
     return m && m.codeHash && secureEq(m.codeHash,d.codeHash) ? m : null;
   } catch { return null; }
 }
+function radioSession(req) {
+  const raw = (req.headers.cookie || '').split(';').map(x => x.trim()).find(x => x.startsWith('ffgc_radio='));
+  if (!raw) return null;
+  const t = raw.slice('ffgc_radio='.length), i = t.lastIndexOf('.');
+  if (i < 0 || !secureEq(sign('radio:' + t.slice(0, i)), t.slice(i + 1))) return null;
+  try {
+    const d = JSON.parse(Buffer.from(t.slice(0, i), 'base64url'));
+    if (d.exp < Date.now()) return null;
+    const m = db.members.find(x => x.id === d.id);
+    return m && m.codeHash && secureEq(m.codeHash, d.codeHash) ? m : null;
+  } catch { return null; }
+}
 function safeProfile(m, detailed=false) {
   const pr=m.profile||{};
   const team=db.teams.find(t => t.members?.includes(m.id));
@@ -419,6 +431,23 @@ async function api(req, res, url) {
     const storageBase = SUPABASE_URL + '/storage/v1';
     const radioBucket = 'ffgc-radio';
     const radioHeaders = { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY };
+    if (route === '/api/radio/access' && req.method === 'GET') {
+      const member = radioSession(req);
+      return member || admin ? send(res,200,{authorized:true,admin:!!admin,member:member?{id:member.id,name:member.name}:null}) : send(res,200,{authorized:false});
+    }
+    if (route === '/api/radio/access' && req.method === 'POST') {
+      if (!required(b.code,100)) return bad(res,'Enter your Private ID');
+      const code = String(b.code).trim().toUpperCase();
+      const member = db.members.find(m => m.codeHash && secureEq(m.codeHash,hash(code)));
+      if (!member) return bad(res,'Invalid private member ID',403);
+      const value = Buffer.from(JSON.stringify({id:member.id,codeHash:member.codeHash,exp:Date.now()+7*86400000})).toString('base64url');
+      res.setHeader('Set-Cookie',`ffgc_radio=${value}.${sign('radio:'+value)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800${process.env.COOKIE_SECURE==='true'?'; Secure':''}`);
+      return send(res,200,{ok:true,authorized:true,name:member.name});
+    }
+    if (route === '/api/radio/access' && req.method === 'DELETE') {
+      res.setHeader('Set-Cookie','ffgc_radio=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+      return send(res,200,{ok:true});
+    }
     async function ensureRadioBucket() {
       const r = await fetch(storageBase + '/bucket/' + radioBucket, { headers: radioHeaders });
       if (r.ok) return;
@@ -433,6 +462,8 @@ async function api(req, res, url) {
     }
     if (route === '/api/radio/tracks' && req.method === 'GET') {
       const member = memberSession(req);
+      // Members with an issued Private ID may listen. God Admin can use this
+      // endpoint only inside the separate control room to manage draft tracks.
       if (!member && !admin) return bad(res,'Member login required',401);
       const tracks = db.radioTracks.filter(t => admin || t.published).sort((a,b) => (a.order||0)-(b.order||0) || Date.parse(b.createdAt)-Date.parse(a.createdAt));
       const result=[];
@@ -468,8 +499,8 @@ async function api(req, res, url) {
       await save(); return send(res,200,{ok:true});
     }
     if (route === '/api/radio/play' && req.method === 'POST') {
-      const member=memberSession(req); if(!member&&!admin)return bad(res,'Member login required',401);
-      const t=db.radioTracks.find(x=>x.id===b.id&& (x.published||admin)); if(!t)return bad(res,'Recording not found',404);
+      const member=memberSession(req); if(!member)return bad(res,'Member login required',401);
+      const t=db.radioTracks.find(x=>x.id===b.id&&x.published); if(!t)return bad(res,'Recording not found',404);
       t.plays=(t.plays||0)+1; t.lastPlayedAt=new Date().toISOString(); await save(); return send(res,200,{ok:true});
     }
     return bad(res,'Radio route not found',404);
