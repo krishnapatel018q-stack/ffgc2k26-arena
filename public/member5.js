@@ -1305,7 +1305,7 @@
           <p class="radio-tagline">THE VOICE OF THE ARENA</p>
           <div class="radio-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
         </div>
-        <div class="radio-player-card" id="radioPlayerCard">
+        <div class="radio-player-card" id="radioPlayerCard" hidden>
           <div class="radio-now-label">NOW PLAYING</div>
           <div class="radio-current-title" id="radioCurrentTitle">Choose a broadcast</div>
           <div class="radio-current-desc" id="radioCurrentDesc">Official FFGC2K26 voice broadcasts appear here.</div>
@@ -1318,9 +1318,9 @@
           <div class="radio-extra-controls"><label>PLAYBACK SPEED <select id="radioSpeed"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option><option>1.5</option><option>2</option></select>x</label><label class="radio-volume">VOLUME <input id="radioVolume" type="range" min="0" max="1" step="0.05" value="1"></label></div>
           <p class="radio-player-status" id="radioStatus">Ready when you are.</p>
         </div>
-        <div class="radio-library-head"><div><small>THE BROADCAST ARCHIVE</small><h3>Voice Library</h3></div><button id="radioRefresh" type="button">↻ Refresh</button></div>
-        <div class="radio-track-list" id="radioTrackList"><div class="radio-loading">Loading broadcasts…</div></div>
-        <div class="radio-footnote">FFGC2K26 RADIO · EVERY VOICE HAS A STORY</div>
+        <div class="radio-library-head" id="radioLibraryHead" hidden><div><small>THE BROADCAST ARCHIVE</small><h3>Voice Library</h3></div><button id="radioRefresh" type="button">↻ Refresh</button></div>
+        <div class="radio-track-list" id="radioTrackList" hidden><div class="radio-loading">Loading broadcasts…</div></div>
+        <div class="radio-footnote" id="radioFootnote" hidden>FFGC2K26 RADIO · EVERY VOICE HAS A STORY</div>
       `);
       radio.id='radioStation';
       main.appendChild(radio);

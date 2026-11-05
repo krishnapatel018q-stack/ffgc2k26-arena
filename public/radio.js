@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
-  let tracks = [], current = -1, loaded = false, busy = false;
+  let tracks = [], current = -1, loaded = false, busy = false, radioAuthorized = false;
   const audio = () => $('radioAudio');
   const fmt = n => { n = Math.max(0, Math.floor(Number(n)||0)); return Math.floor(n/60)+':'+String(n%60).padStart(2,'0'); };
   const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -16,10 +16,37 @@
     if(!tracks.length){list.innerHTML='<div class="radio-empty"><b>NO BROADCASTS YET</b><span>New FFGC2K26 voice broadcasts will appear here.</span></div>';return;}
     list.innerHTML=tracks.map((t,i)=>`<button class="radio-track ${i===current?'is-active':''}" data-radio-track="${i}" type="button"><span class="radio-track-index">${String(i+1).padStart(2,'0')}</span><span class="radio-track-copy"><b>${esc(t.title)}</b><small>${esc(t.description||'Official FFGC2K26 broadcast')}</small></span><span class="radio-track-duration">${fmt(t.duration)}</span><span class="radio-track-play">${i===current&&audio()?.paused===false?'Ⅱ':'▶'}</span></button>`).join('');
   }
+  function radioContentVisible(visible){
+    ['radioPlayerCard','radioLibraryHead','radioTrackList','radioFootnote'].forEach(id=>{const el=$(id);if(el)el.hidden=!visible;});
+  }
+  function showGate(message='Enter your FFGC2K26 Private ID to unlock the Radio.') {
+    const station=$('radioStation'); if(!station)return;
+    radioContentVisible(false);
+    let gate=$('radioAccessGate');
+    if(!gate){
+      gate=document.createElement('section');gate.id='radioAccessGate';gate.className='radio-access-gate';
+      gate.innerHTML=`<div class="radio-gate-mark">◉</div><p class="radio-gate-kicker">RESTRICTED MEMBER CHANNEL</p><h3>PRIVATE ACCESS REQUIRED</h3><p class="radio-gate-copy">FFGC2K26 Radio is exclusively available to the 16 members issued an official Private ID.</p><form id="radioAccessForm"><label for="radioPrivateId">YOUR PRIVATE ID</label><input id="radioPrivateId" name="privateId" type="password" autocomplete="current-password" placeholder="Enter your Private ID" required maxlength=100><button type="submit">VERIFY &amp; ENTER RADIO</button><p id="radioGateMessage" role="status"></p></form><small>UNAUTHORIZED ACCESS IS NOT PERMITTED.</small>`;
+      station.insertBefore(gate,station.children[1]||null);
+      $('radioAccessForm').addEventListener('submit',async e=>{
+        e.preventDefault();const input=$('radioPrivateId'),btn=e.currentTarget.querySelector('button'),msg=$('radioGateMessage');
+        const code=input.value.trim();if(!code)return;btn.disabled=true;btn.textContent='VERIFYING…';msg.textContent='Checking member credentials…';
+        try{await api('/api/radio/access',{method:'POST',body:JSON.stringify({code})});radioAuthorized=true;gate.remove();radioContentVisible(true);await refresh();}
+        catch(err){msg.textContent=err.message==='Invalid private member ID'?'Access denied. This Private ID is not authorized for FFGC2K26 Radio.':err.message;input.select();}
+        finally{if(btn.isConnected){btn.disabled=false;btn.textContent='VERIFY & ENTER RADIO';}}
+      });
+    }
+    const msg=$('radioGateMessage');if(msg)msg.textContent=message;
+  }
   async function refresh(){
     if(!loaded && $('radioTrackList')) $('radioTrackList').innerHTML='<div class="radio-loading">Tuning into the arena…</div>';
-    try{const d=await api('/api/radio/tracks');tracks=d.tracks||[];loaded=true;if(current>=tracks.length)current=-1;render();status(tracks.length?'Broadcast archive connected.':'No published broadcasts yet.');}
-    catch(e){if($('radioTrackList'))$('radioTrackList').innerHTML=`<div class="radio-empty"><b>RADIO UNAVAILABLE</b><span>${esc(e.message)}</span></div>`;status(e.message);}
+    try{
+      if(!radioAuthorized){const access=await api('/api/radio/access');if(!access.authorized){showGate();return;}radioAuthorized=true;}
+      const gate=$('radioAccessGate');if(gate)gate.remove();radioContentVisible(true);
+      const d=await api('/api/radio/tracks');tracks=d.tracks||[];loaded=true;if(current>=tracks.length)current=-1;render();status(tracks.length?'Broadcast archive connected.':'No published broadcasts yet.');
+    } catch(e){
+      if(e.message==='Radio Private ID required'){radioAuthorized=false;showGate();return;}
+      if($('radioTrackList'))$('radioTrackList').innerHTML=`<div class="radio-empty"><b>RADIO UNAVAILABLE</b><span>${esc(e.message)}</span></div>`;status(e.message);
+    }
   }
   function setTrack(i,autoplay=true){
     if(!tracks.length)return; i=(i+tracks.length)%tracks.length; current=i; const t=tracks[i];
