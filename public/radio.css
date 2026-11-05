@@ -20,24 +20,3 @@
 
 /* Keep protected Radio content hidden until server-side member verification succeeds. */
 .ffgc-radio-section [hidden] { display: none !important; }
-
-/* Embedded God Admin Radio Control Room */
-.radio-admin-embedded{max-width:none;margin:12px 0 24px;padding:0;color:var(--text,#f4efff);font-family:inherit}
-.radio-admin-embedded .radio-admin-kicker{letter-spacing:2px;color:#b99bff;font-size:10px;font-weight:900;margin:0 0 5px}
-.radio-admin-embedded h2{font-size:21px;margin:0 0 5px;color:#f4efff}
-.radio-admin-embedded .radio-admin-subtitle,.radio-admin-embedded .radio-admin-help{color:#aaa2bd;font-size:12px}
-.radio-admin-embedded .radio-admin-card{background:linear-gradient(145deg,#19152d,#0b1020);border:1px solid #9270d955;border-radius:16px;padding:15px;margin:12px 0}
-.radio-admin-embedded .radio-admin-card h3{margin:0 0 12px;color:#eee5ff;font-size:15px}
-.radio-admin-embedded label{display:block;color:#c8bddf;font-size:12px;margin:12px 0}
-.radio-admin-embedded input,.radio-admin-embedded textarea{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:12px;border-radius:11px;border:1px solid #64518b;background:#0b0d19;color:white;font:inherit}
-.radio-admin-embedded textarea{min-height:76px}
-.radio-admin-embedded button{border:0;border-radius:10px;padding:10px 13px;background:#8758dc;color:white;font-weight:850;margin:5px 5px 5px 0;cursor:pointer}
-.radio-admin-embedded button.secondary{background:#2a2440;color:#d9caff;border:1px solid #6f589b}
-.radio-admin-library-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.radio-admin-embedded .radio-admin-track{padding:12px 0;border-bottom:1px solid #ffffff18}
-.radio-admin-embedded .radio-admin-track b{display:block;color:#fff}
-.radio-admin-embedded .radio-admin-track small{display:block;color:#a59dbd;margin:4px 0 8px}
-.radio-admin-embedded .radio-admin-status{color:#c5a9ff;font-size:12px;min-height:18px}
-.radio-admin-embedded .radio-upload-progress{height:7px;background:#302747;border-radius:10px;overflow:hidden}
-.radio-admin-embedded .radio-upload-progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,#7546c5,#c2a2ff)}
-.radio-admin-embedded button:disabled{opacity:.55;cursor:wait}

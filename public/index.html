@@ -385,30 +385,6 @@ body.economic-empire-open {
       </a>
     </div>
 
-    <!-- RADIO CONTROL ROOM: GOD ADMIN DASHBOARD ONLY -->
-    <h3 class="adminSub">◉ FFGC2K26 RADIO — GOD ADMIN CONTROL ROOM</h3>
-    <section class="radio-admin-wrap radio-admin-embedded" aria-label="Radio Control Room">
-      <p class="radio-admin-kicker">PRIVATE BROADCAST NETWORK · GOD ADMIN ACCESS ONLY</p>
-      <h2>◉ RADIO CONTROL ROOM</h2>
-      <p class="radio-admin-subtitle">Upload, publish and manage official FFGC2K26 voice broadcasts.</p>
-      <section class="radio-admin-card">
-        <h3>Upload a broadcast</h3>
-        <form id="radioUploadForm">
-          <label>Broadcast title<input id="radioTitle" maxlength="100" required placeholder="e.g. Official Investigator Warning"></label>
-          <label>Description<textarea id="radioDescription" maxlength="500" placeholder="Add a short description"></textarea></label>
-          <label>Voice note / audio file<input id="radioFile" type="file" accept="audio/*,.m4a,.mp3,.wav,.ogg,.aac,.webm" required></label>
-          <p class="radio-admin-help">Maximum file size: 25 MB. Uploads remain private drafts until published.</p>
-          <button type="submit" id="radioUploadBtn">↑ Upload broadcast</button>
-          <div class="radio-upload-progress"><i id="radioUploadBar"></i></div>
-          <p class="radio-admin-status" id="radioAdminStatus" role="status">Radio Control Room ready.</p>
-        </form>
-      </section>
-      <section class="radio-admin-card">
-        <div class="radio-admin-library-head"><h3>Broadcast library</h3><button class="secondary" id="radioAdminRefresh" type="button">↻ Refresh</button></div>
-        <div id="radioAdminList">Sign in as God Admin to load broadcasts.</div>
-      </section>
-    </section>
-
     <div class="adminGrid">
 
       <div class="adminCard">
@@ -855,7 +831,6 @@ body.economic-empire-open {
 <script src="/chamber.js"></script>
 <script src="/elimination.js?v=20261025-stability3"></script>
 <script src="/radio.js?v=private-gate-3" defer></script>
-<script src="/radio-admin.js?v=god-admin-embedded-1" defer></script>
 <script src="/royale.js" defer></script>
 <script src="/member5.js?v=hall-home-20261029" defer></script>
 
