@@ -1713,6 +1713,10 @@ const allowedFiles = new Set([
   'royale6.css',
   'obsidian.css',
 
+  // FFGC OS Mobile Edition
+  'ffgc-os.js',
+  'ffgc-os.css',
+
   // Auction House
   'auction.js',
   'auction.css',
@@ -1734,8 +1738,7 @@ const allowedFiles = new Set([
   // FFGC2K26 Radio
   'radio.js',
   'radio.css',
-  'radio-admin.js',
-  'radio-admin.html'
+  'radio-admin.js'
 ]);
 
 let requestQueue = Promise.resolve();
@@ -1764,14 +1767,18 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Standalone Radio Control Room is served only to an authenticated God Admin.
-  // Its API endpoints independently enforce admin authentication as well.
-  if (u.pathname === '/radio-admin' || u.pathname === '/radio-admin.html') {
+  // Dedicated Radio Control Room. API endpoints still enforce God Admin access.
+  if (u.pathname === '/radio-admin') {
     if (!isAdmin(req)) {
       res.writeHead(302, {'Location': '/#admin', 'Cache-Control': 'no-store'});
       return res.end();
     }
-    u.pathname = '/radio-admin.html';
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff'
+    });
+    return res.end(fs.readFileSync(path.join(ROOT, 'public', 'radio-admin.html')));
   }
 
   // GOD ADMIN ACCESS
