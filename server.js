@@ -391,7 +391,7 @@ async function api(req, res, url) {
 
       for await (const c of req) {
         size += c.length;
-        if (size > 100000) throw Error('Payload too large');
+        if (size > (url.pathname === '/api/radio/upload' ? 35000000 : 100000)) throw Error('Payload too large');
         chunks.push(c);
       }
 
@@ -410,6 +410,69 @@ async function api(req, res, url) {
     if (route === '/api/public' && req.method === 'GET') return send(res,200,{settings:{siteMode:'shutdown'},locked:true,leaderboard:[],tasks:[],announcements:[],polls:[],teams:[],spotlight:[],publicProfiles:[],admin:false});
     if (route === '/api/login' && req.method === 'POST') { /* permit God Admin login below */ }
     else return bad(res,'Arena temporarily closed by God Admin',503);
+  }
+
+  // FFGC2K26 RADIO — metadata stays in the existing arena_data JSON row.
+  // Audio binaries live in a private Supabase Storage bucket; no database reset/migration.
+  if (route.startsWith('/api/radio/')) {
+    db.radioTracks ||= [];
+    const storageBase = SUPABASE_URL + '/storage/v1';
+    const radioBucket = 'ffgc-radio';
+    const radioHeaders = { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY };
+    async function ensureRadioBucket() {
+      const r = await fetch(storageBase + '/bucket/' + radioBucket, { headers: radioHeaders });
+      if (r.ok) return;
+      const create = await fetch(storageBase + '/bucket', { method:'POST', headers:{...radioHeaders,'Content-Type':'application/json'}, body:JSON.stringify({id:radioBucket,name:radioBucket,public:false,file_size_limit:26214400}) });
+      if (!create.ok && create.status !== 409) throw Error('Radio storage bucket setup failed: HTTP ' + create.status);
+    }
+    async function signedAudio(path) {
+      const r = await fetch(storageBase + '/object/sign/' + radioBucket + '/' + path.split('/').map(encodeURIComponent).join('/'), {method:'POST',headers:{...radioHeaders,'Content-Type':'application/json'},body:JSON.stringify({expiresIn:3600})});
+      if (!r.ok) throw Error('Could not prepare audio playback URL');
+      const data = await r.json();
+      return data.signedURL?.startsWith('http') ? data.signedURL : SUPABASE_URL + '/storage/v1' + data.signedURL;
+    }
+    if (route === '/api/radio/tracks' && req.method === 'GET') {
+      const member = memberSession(req);
+      if (!member && !admin) return bad(res,'Member login required',401);
+      const tracks = db.radioTracks.filter(t => admin || t.published).sort((a,b) => (a.order||0)-(b.order||0) || Date.parse(b.createdAt)-Date.parse(a.createdAt));
+      const result=[];
+      for (const t of tracks) result.push({...t,audioUrl:await signedAudio(t.path)});
+      return send(res,200,{tracks:result,admin});
+    }
+    if (route === '/api/radio/upload' && req.method === 'POST') {
+      if (!admin) return bad(res,'God Admin access required',403);
+      const title=String(b.title||'').trim(), description=String(b.description||'').trim();
+      const mime=String(b.mimeType||'').toLowerCase(), filename=String(b.filename||'voice-note').replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,100);
+      if(!title||title.length>100||description.length>500) return bad(res,'Enter a title (max 100) and description (max 500)');
+      if(!mime.startsWith('audio/')) return bad(res,'Only audio files are allowed');
+      if(typeof b.dataBase64!=='string'||b.dataBase64.length<20||b.dataBase64.length>35000000) return bad(res,'Audio file is missing or exceeds 25 MB');
+      const bytes=Buffer.from(b.dataBase64,'base64');
+      if(!bytes.length||bytes.length>26214400) return bad(res,'Audio file must be 25 MB or smaller');
+      await ensureRadioBucket();
+      const pathKey=crypto.randomUUID()+'-'+filename;
+      const up=await fetch(storageBase+'/object/'+radioBucket+'/'+pathKey,{method:'POST',headers:{...radioHeaders,'Content-Type':mime,'x-upsert':'false'},body:bytes});
+      if(!up.ok) return bad(res,'Audio storage upload failed: '+(await up.text()).slice(0,180),502);
+      const track={id:crypto.randomUUID(),title,description,filename,path:pathKey,mimeType:mime,size:bytes.length,duration:Math.max(0,Number(b.duration)||0),createdAt:new Date().toISOString(),published:false,plays:0,order:db.radioTracks.length};
+      db.radioTracks.push(track); await save();
+      return send(res,200,{ok:true,track});
+    }
+    if (route === '/api/radio/manage' && req.method === 'POST') {
+      if (!admin) return bad(res,'God Admin access required',403);
+      const t=db.radioTracks.find(x=>x.id===b.id);
+      if(!t) return bad(res,'Recording not found',404);
+      if(b.action==='publish'||b.action==='unpublish') t.published=b.action==='publish';
+      else if(b.action==='edit') {const title=String(b.title||'').trim(),description=String(b.description||'').trim();if(!title||title.length>100||description.length>500)return bad(res,'Invalid title or description');t.title=title;t.description=description;}
+      else if(b.action==='delete') {await fetch(storageBase+'/object/'+radioBucket+'/'+t.path.split('/').map(encodeURIComponent).join('/'),{method:'DELETE',headers:radioHeaders});db.radioTracks=db.radioTracks.filter(x=>x.id!==t.id);}
+      else if(b.action==='move') {t.order=Number(b.order)||0;}
+      else return bad(res,'Unknown radio action');
+      await save(); return send(res,200,{ok:true});
+    }
+    if (route === '/api/radio/play' && req.method === 'POST') {
+      const member=memberSession(req); if(!member&&!admin)return bad(res,'Member login required',401);
+      const t=db.radioTracks.find(x=>x.id===b.id&& (x.published||admin)); if(!t)return bad(res,'Recording not found',404);
+      t.plays=(t.plays||0)+1; t.lastPlayedAt=new Date().toISOString(); await save(); return send(res,200,{ok:true});
+    }
+    return bad(res,'Radio route not found',404);
   }
 
 
@@ -573,8 +636,8 @@ async function api(req, res, url) {
       }else if(op==='company'){
         const price=econNum(b.price),supply=econNum(b.supply);if(!String(b.name||'').trim()||!price||supply===null)return bad(res,'Invalid company');
         const co=b.id?e.companies.find(x=>x.id===b.id):null;
-        if(co){co.name=String(b.name).slice(0,70);co.price=price;co.supply=supply;co.lastTickAt=Date.now();co.history.push({at:new Date().toISOString(),price});}
-        else e.companies.push({id:crypto.randomUUID(),name:String(b.name).slice(0,70),price,supply,history:[{at:new Date().toISOString(),price}],lastTickAt:Date.now(),frozen:false});
+        if(co){co.name=String(b.name).slice(0,70);co.price=price;co.supply=supply;co.history.push({at:new Date().toISOString(),price});}
+        else e.companies.push({id:crypto.randomUUID(),name:String(b.name).slice(0,70),price,supply,history:[{at:new Date().toISOString(),price}],frozen:false});
       }else if(op==='company-control'){
         const co=e.companies.find(x=>x.id===b.id);if(!co)return bad(res,'Company missing');
         if(b.mode==='freeze')co.frozen=true;else if(b.mode==='unfreeze')co.frozen=false;else if(b.mode==='archive')co.archived=true;else return bad(res,'Invalid mode');
@@ -1457,7 +1520,7 @@ function economyStore(){
   e.autoMarket ??= true; e.marketEvents ||= []; e.notifications ||= []; e.missions ||= {}; e.lastAutoTick ||= Date.now();
   if(e.seedVersion<1){
     const companySeeds=[['Royal Crown Industries',500,100],['Diamond Empire Ltd.',450,120],['Thunderbolt Energy',320,150],['NovaTech Solutions',280,180],['Imperial Banking Corp.',250,200],['Phoenix Motors',220,220],['CyberCore Technologies',180,250],['Skyline Real Estate',150,300],['MegaMart Retail',120,350],['GreenFuture Energy',100,400],['PixelVerse Gaming',75,500],['StarLink Entertainment',50,600]];
-    for(const [name,price,supply] of companySeeds)if(!e.companies.some(x=>x.name.toLowerCase()===name.toLowerCase()))e.companies.push({id:crypto.randomUUID(),name,price,supply,history:[{at:new Date().toISOString(),price}],lastTickAt:Date.now(),frozen:false});
+    for(const [name,price,supply] of companySeeds)if(!e.companies.some(x=>x.name.toLowerCase()===name.toLowerCase()))e.companies.push({id:crypto.randomUUID(),name,price,supply,history:[{at:new Date().toISOString(),price}],frozen:false});
     const businessSeeds=[['Royal Café',8000,400],['Gaming Lounge',12000,650],['Premium Restaurant',18000,950],['Shopping Complex',25000,1300],['Luxury Hotel',40000,2100],['Finance Corporation',60000,3200],['Industrial Factory',85000,4500],['Diamond Corporation',120000,6500],['Royal Business Empire',200000,11000]];
     for(const [name,price,income] of businessSeeds)if(!e.businessTypes.some(x=>x.name.toLowerCase()===name.toLowerCase()))e.businessTypes.push({id:crypto.randomUUID(),name,price,income,maintenance:Math.round(income*.2)});
     const productSeeds=[['FC Bonus Pack',1500,'bonus',1],['Trading Pass',2500,'trading',7],['Banking Plus',4000,'analytics',0],['Business Booster',6000,'business_boost',7],['VIP Investor Badge',10000,'vip_badge',30],['Empire Prestige',25000,'prestige',0]];
@@ -1467,7 +1530,6 @@ function economyStore(){
   if(e.seedVersion<2){for(const t of e.businessTypes)if(!t.maintenance)t.maintenance=Math.round(t.income*.2);e.seedVersion=2;}
   for(const k of ['companies','businessTypes','businesses','products','items','trades','orders','schedules','history'])e[k] ||= [];
   e.accounts ||= {};
-  for(const co of e.companies){co.history ||= [];co.lastTickAt ||= (co.history.at(-1)?.at ? Date.parse(co.history.at(-1).at) : Date.now());}
   for(const m of db.members) if(!e.accounts[m.id])e.accounts[m.id]={cash:e.initialCash??2000,shares:{}};
   return e;
 }
@@ -1478,28 +1540,77 @@ function econNotify(e,memberId,message){e.notifications.unshift({id:crypto.rando
 function econBusinessLevel(owned){return Math.max(1,Math.min(5,owned.level||1));}
 function econMaintenance(t,owned){return Math.round(t.maintenance*(1+.25*(econBusinessLevel(owned)-1)));}
 function econIncome(t,owned){return Math.round(t.income*(1+.3*(econBusinessLevel(owned)-1)));}
-function econAutoMarket(e,now){
- if(!econMarketOpen(e)||e.autoMarket===false)return false;
- const tick=10000, steps=Math.min(360,Math.floor((now-e.lastAutoTick)/tick));if(steps<=0)return false;
- // Server-side movement persists across redeploys; only completed market-open ticks are applied.
- e.lastAutoTick=now;let changed=true;
- const hourKey=Math.floor((now+330*60000)/3600000);
- if(e.lastEventHour!==hourKey){
-   e.lastEventHour=hourKey;
-   const categories=['Technology Boost','Retail Momentum','Energy Slowdown','Market Stability'];
-   const eventName=categories[hourKey%categories.length];
-   e.marketEvents.unshift({at:now,title:eventName});e.marketEvents=e.marketEvents.slice(0,30);
-   econRecord(e,'market_event',null,eventName);changed=true;
- }
+function econAutoMarket(e, now) {
+  // Never simulate overnight ticks. Market movement is limited to live market hours.
+  if (!econMarketOpen(e) || e.autoMarket === false) {
+    e.lastAutoTick = now;
+    return false;
+  }
 
- for(const co of e.companies){if(co.archived||co.frozen||e.schedules.some(sc=>sc.companyId===co.id&&sc.status==='running'))continue;
-  const seed=crypto.createHash('sha256').update(co.id+':'+Math.floor(now/tick)).digest().readUInt32BE(0)/4294967295;
-  const drift=(seed-.5)*.008;const next=Math.max(1,Math.round(co.price*(1+drift)));
-  // Record a point on every market tick, even when rounding keeps the price flat.
-  co.price=next;co.lastTickAt=now;co.history ||= [];co.history.push({at:new Date(now).toISOString(),price:next});
-  if(co.history.length>2000)co.history.splice(0,co.history.length-2000);
- }
- return changed;
+  const tickMs = 10000;
+  const previousTick = Number(e.lastAutoTick) || now;
+  const steps = Math.min(360, Math.max(0, Math.floor((now - previousTick) / tickMs)));
+  if (steps <= 0) return false;
+
+  const firstTickAt = now - steps * tickMs;
+  e.lastAutoTick = now;
+  let changed = false;
+
+  const hourKey = Math.floor((now + 330 * 60000) / 3600000);
+  e.marketEvents ||= [];
+  if (e.lastEventHour !== hourKey) {
+    e.lastEventHour = hourKey;
+    const categories = [
+      'Technology Boost',
+      'Retail Momentum',
+      'Energy Slowdown',
+      'Market Stability'
+    ];
+    const eventName = categories[hourKey % categories.length];
+    e.marketEvents.unshift({ at: now, title: eventName });
+    e.marketEvents = e.marketEvents.slice(0, 30);
+    econRecord(e, 'market_event', null, eventName);
+    changed = true;
+  }
+
+  for (const co of e.companies) {
+    if (
+      co.archived ||
+      co.frozen ||
+      e.schedules.some(sc => sc.companyId === co.id && sc.status === 'running')
+    ) continue;
+
+    co.history ||= [];
+
+    // Replay each missed 10-second interval independently so the graph
+    // receives real intermediate points rather than one end-of-window point.
+    for (let i = 1; i <= steps; i++) {
+      const tickAt = firstTickAt + i * tickMs;
+      const tickNumber = Math.floor(tickAt / tickMs);
+      const seed = crypto
+        .createHash('sha256')
+        .update(co.id + ':' + tickNumber)
+        .digest()
+        .readUInt32BE(0) / 4294967295;
+      const drift = (seed - 0.5) * 0.008;
+      const nextPrice = Math.max(1, Math.round(co.price * (1 + drift)));
+
+      if (nextPrice !== co.price) {
+        co.price = nextPrice;
+        co.history.push({
+          at: new Date(tickAt).toISOString(),
+          price: nextPrice
+        });
+        changed = true;
+      }
+    }
+
+    if (co.history.length > 2000) {
+      co.history.splice(0, co.history.length - 2000);
+    }
+  }
+
+  return changed;
 }
 function econSettle(){
   if(!db.economy)return false;
@@ -1512,7 +1623,7 @@ function econSettle(){
     if(sc.status==='pending'){sc.status='running';sc.from=co.price;changed=true;}
     const progress=Math.min(1,Math.max(0,(now-sc.startAt)/Math.max(1000,sc.durationMs)));
     const next=Math.max(1,Math.round(sc.from+(sc.target-sc.from)*progress));
-    if(next!==co.price||co.lastTickAt!==now){co.price=next;co.lastTickAt=now;co.history ||= [];co.history.push({at:new Date(now).toISOString(),price:next});if(co.history.length>2000)co.history.shift();changed=true;}
+    if(next!==co.price){co.price=next;co.history ||= [];co.history.push({at:new Date(now).toISOString(),price:next});if(co.history.length>2000)co.history.shift();changed=true;}
     if(progress===1){sc.status='done';econRecord(e,'scheduled_price',null,co.name+' reached '+co.price+' FC');changed=true;}
   }
   // One payout per due cycle, only after available FC pays maintenance first.
@@ -1538,7 +1649,7 @@ function economyView(e,member,admin){
  const memberBusinesses=e.businesses.filter(x=>member&&x.memberId===member.id);
  const networth=account?account.cash+companies.reduce((sum,c)=>sum+(account.shares[c.id]||0)*c.price,0)+memberBusinesses.reduce((sum,b)=>sum+(e.businessTypes.find(t=>t.id===b.typeId)?.price||0),0):0;
  const ranks=db.members.map(m=>{const a=e.accounts[m.id]||{cash:0,shares:{}};const items=e.items.filter(x=>x.memberId===m.id);const badges=[items.some(x=>x.effect==='vip_badge'&&x.expiresAt>Date.now())?'👑 VIP':'',items.some(x=>x.effect==='prestige')?'💎 Prestige':''].filter(Boolean).join(' ');return {name:m.name,badges,netWorth:a.cash+companies.reduce((sum,c)=>sum+(a.shares[c.id]||0)*c.price,0)+e.businesses.filter(b=>b.memberId===m.id).reduce((sum,b)=>sum+(e.businessTypes.find(t=>t.id===b.typeId)?.price||0),0)}}).sort((a,b)=>b.netWorth-a.netWorth);
- return {enabled:e.enabled,marketOpen:econMarketOpen(e),approvalMode:e.approvalMode,member:member?{id:member.id,name:member.name,account,netWorth:networth,businesses:memberBusinesses,notifications:e.notifications.filter(x=>x.memberId===member.id).slice(0,30),missions:e.missions[member.id+':'+new Date(Date.now()+330*60000).toISOString().slice(0,10)]||[],items:e.items.filter(x=>x.memberId===member.id),orders:e.orders.filter(x=>x.memberId===member.id),trades:e.trades.filter(x=>x.fromId===member.id||x.toId===member.id),history:e.history.filter(x=>x.memberId===member.id).slice(0,60),achievements:[...(e.orders.some(x=>x.memberId===member.id&&x.side==='buy'&&x.status==='approved')?['🏅 First Investor']:[]),...(memberBusinesses.length?['🏢 Business Tycoon']:[]),...(networth>=100000?['💎 Millionaire Club']:[]),...(e.orders.filter(x=>x.memberId===member.id&&x.status==='approved').length>=50?['📈 Market Legend']:[])]}:null,companies,businessTypes:e.businessTypes.filter(x=>!x.archived),autoMarket:e.autoMarket,marketEvents:e.marketEvents.slice(0,12),products:e.products.filter(x=>!x.archived),rankings:ranks.slice(0,30),tradeMembers:member?db.members.filter(x=>x.id!==member.id).map(x=>({id:x.id,name:x.name})):[],activity:e.orders.filter(x=>x.status==='approved').slice(-20).reverse().map(x=>({company:e.companies.find(c=>c.id===x.companyId)?.name||'Company',side:x.side,quantity:x.quantity,at:x.at})),members:admin?db.members.map(m=>({id:m.id,name:m.name,cash:e.accounts[m.id]?.cash||0})):undefined,admin:admin?{schedules:e.schedules,orders:e.orders,trades:e.trades,history:e.history.slice(0,200),businesses:e.businesses,marketHealth:e.companies.filter(c=>!c.archived).map(c=>{const scheduled=e.schedules.some(sc=>sc.companyId===c.id&&sc.status==='running');const last=Number(c.lastTickAt||0);const status=c.frozen?'FROZEN':scheduled?'SCHEDULED':!econMarketOpen(e)?'MARKET CLOSED':e.autoMarket===false?'ENGINE PAUSED':!last||Date.now()-last>45000?'STALE':'HEALTHY';return {id:c.id,name:c.name,price:c.price,frozen:!!c.frozen,scheduled,historyCount:(c.history||[]).length,lastTickAt:last?new Date(last).toISOString():null,lastHistoryAt:c.history?.at(-1)?.at||null,status};}),holdings:db.members.map(m=>({name:m.name,id:m.id,shares:e.accounts[m.id]?.shares||{},orders:e.orders.filter(o=>o.memberId===m.id).slice(-50)})),items:e.items,settings:{initialCash:e.initialCash,autoMarket:e.autoMarket,fcCirculation:Object.values(e.accounts).reduce((n,a)=>n+a.cash,0),lockedBusinesses:e.businesses.filter(b=>b.locked).length}}:undefined};
+ return {enabled:e.enabled,marketOpen:econMarketOpen(e),approvalMode:e.approvalMode,member:member?{id:member.id,name:member.name,account,netWorth:networth,businesses:memberBusinesses,notifications:e.notifications.filter(x=>x.memberId===member.id).slice(0,30),missions:e.missions[member.id+':'+new Date(Date.now()+330*60000).toISOString().slice(0,10)]||[],items:e.items.filter(x=>x.memberId===member.id),orders:e.orders.filter(x=>x.memberId===member.id),trades:e.trades.filter(x=>x.fromId===member.id||x.toId===member.id),history:e.history.filter(x=>x.memberId===member.id).slice(0,60),achievements:[...(e.orders.some(x=>x.memberId===member.id&&x.side==='buy'&&x.status==='approved')?['🏅 First Investor']:[]),...(memberBusinesses.length?['🏢 Business Tycoon']:[]),...(networth>=100000?['💎 Millionaire Club']:[]),...(e.orders.filter(x=>x.memberId===member.id&&x.status==='approved').length>=50?['📈 Market Legend']:[])]}:null,companies,businessTypes:e.businessTypes.filter(x=>!x.archived),autoMarket:e.autoMarket,marketEvents:e.marketEvents.slice(0,12),products:e.products.filter(x=>!x.archived),rankings:ranks.slice(0,30),tradeMembers:member?db.members.filter(x=>x.id!==member.id).map(x=>({id:x.id,name:x.name})):[],activity:e.orders.filter(x=>x.status==='approved').slice(-20).reverse().map(x=>({company:e.companies.find(c=>c.id===x.companyId)?.name||'Company',side:x.side,quantity:x.quantity,at:x.at})),members:admin?db.members.map(m=>({id:m.id,name:m.name,cash:e.accounts[m.id]?.cash||0})):undefined,admin:admin?{schedules:e.schedules,orders:e.orders,trades:e.trades,history:e.history.slice(0,200),businesses:e.businesses,holdings:db.members.map(m=>({name:m.name,id:m.id,shares:e.accounts[m.id]?.shares||{},orders:e.orders.filter(o=>o.memberId===m.id).slice(-50)})),items:e.items,settings:{initialCash:e.initialCash,autoMarket:e.autoMarket,fcCirculation:Object.values(e.accounts).reduce((n,a)=>n+a.cash,0),lockedBusinesses:e.businesses.filter(b=>b.locked).length}}:undefined};
 }
 
 // STATIC WEBSITE FILES
@@ -1565,6 +1676,10 @@ const allowedFiles = new Set([
   'royale6.css',
   'obsidian.css',
 
+  // FFGC OS Mobile Edition
+  'ffgc-os.js',
+  'ffgc-os.css',
+
   // Auction House
   'auction.js',
   'auction.css',
@@ -1581,7 +1696,13 @@ const allowedFiles = new Set([
 
   // Elimination Arena
   'elimination.js',
-  'elimination.css'
+  'elimination.css',
+
+  // FFGC2K26 Radio
+  'radio.js',
+  'radio.css',
+  'radio-admin.html',
+  'radio-admin.js'
 ]);
 
 let requestQueue = Promise.resolve();
@@ -1608,6 +1729,13 @@ const server = http.createServer((req, res) => {
 
     requestQueue = requestQueue.then(run, run);
     return;
+  }
+
+  // God Admin-only Radio Control Room
+  if (u.pathname === '/radio-admin') {
+    if (!isAdmin(req)) { res.writeHead(302,{Location:'/god-access'}); return res.end(); }
+    res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});
+    return res.end(fs.readFileSync(path.join(ROOT,'public','radio-admin.html')));
   }
 
   // GOD ADMIN ACCESS
