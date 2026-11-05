@@ -1267,6 +1267,21 @@
       }
     }
 
+    const voiceButton = create("button", "v5-nav-btn", "<span>◉</span><b>Voice Center</b>");
+    voiceButton.type = "button";
+    voiceButton.dataset.v5Voice = "true";
+    sideNav.appendChild(voiceButton);
+
+    const voiceMobileButton = create("button", "v5-bottom-btn", "<span>◉</span><small>Voice</small>");
+    voiceMobileButton.type = "button";
+    voiceMobileButton.dataset.v5Voice = "true";
+    bottom.appendChild(voiceMobileButton);
+
+    const voiceTile = create("button", "v5-tile", "<span>◉</span><strong>Voice Center</strong><small>LISTEN ↗</small>");
+    voiceTile.type = "button";
+    voiceTile.dataset.v5Voice = "true";
+    home.querySelector("#v5Quick").appendChild(voiceTile);
+
     sidebar.appendChild(sideNav);
 
     main.parentNode.insertBefore(shell, main);
@@ -1377,6 +1392,8 @@
 
     // Member navigation.
     document.addEventListener("click", event => {
+      const voiceButton = event.target.closest("[data-v5-voice]");
+      if (voiceButton) { event.preventDefault(); location.href = "/voice-center.html"; return; }
       const routeButton = event.target.closest("[data-v5-route]");
 
       if (routeButton) {
