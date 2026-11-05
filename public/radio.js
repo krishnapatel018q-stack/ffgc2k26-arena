@@ -51,8 +51,8 @@
   function setTrack(i,autoplay=true){
     if(!tracks.length)return; i=(i+tracks.length)%tracks.length; current=i; const t=tracks[i];
     $('radioCurrentTitle').textContent=t.title; $('radioCurrentDesc').textContent=t.description||'Official FFGC2K26 broadcast';
-    audio().src=t.audioUrl; audio().playbackRate=Number($('radioSpeed')?.value||1); render();
-    if(autoplay) audio().play().then(()=>{ $('radioPlay').textContent='Ⅱ';status('Now playing · '+t.title);api('/api/radio/play',{method:'POST',body:JSON.stringify({id:t.id})}).catch(()=>{});}).catch(()=>status('Tap play to start this broadcast.'));
+    audio().pause(); audio().removeAttribute('src'); audio().load(); audio().src=t.audioUrl; audio().preload='metadata'; audio().playbackRate=Number($('radioSpeed')?.value||1); audio().load(); render();
+    if(autoplay) audio().play().then(()=>{ $('radioPlay').textContent='Ⅱ';status('Now playing · '+t.title);api('/api/radio/play',{method:'POST',body:JSON.stringify({id:t.id})}).catch(()=>{});}).catch(err=>status('Playback failed: '+(err.message||'check audio format or storage access')));
     else {$('radioPlay').textContent='▶';status('Ready · '+t.title);}
   }
   function bind(){
@@ -63,7 +63,10 @@
     $('radioBack')?.addEventListener('click',()=>audio().currentTime=Math.max(0,audio().currentTime-10)); $('radioForward')?.addEventListener('click',()=>audio().currentTime=Math.min(audio().duration||0,audio().currentTime+10));
     $('radioSeek')?.addEventListener('input',e=>{if(audio().duration)audio().currentTime=audio().duration*(Number(e.target.value)/1000);});
     $('radioSpeed')?.addEventListener('change',e=>audio().playbackRate=Number(e.target.value)); $('radioVolume')?.addEventListener('input',e=>audio().volume=Number(e.target.value));
+    audio()?.addEventListener('loadedmetadata',()=>{const a=audio(),t=tracks[current];if(t&&Number.isFinite(a.duration)&&a.duration>0){t.duration=a.duration;render();api('/api/radio/duration',{method:'POST',body:JSON.stringify({id:t.id,duration:a.duration})}).catch(()=>{});} $('radioDuration').textContent=fmt(a.duration);});
     audio()?.addEventListener('timeupdate',()=>{const a=audio();$('radioElapsed').textContent=fmt(a.currentTime);$('radioDuration').textContent=fmt(a.duration);$('radioSeek').value=a.duration?Math.round(a.currentTime/a.duration*1000):0;});
+    audio()?.addEventListener('error',()=>{const a=audio(),code=a.error?.code;status('Audio could not load (media error '+(code||'unknown')+'). Refresh the broadcast or re-upload as MP3/M4A.');});
+    audio()?.addEventListener('canplay',()=>{if(current>=0)status('Audio ready · '+tracks[current].title);});
     audio()?.addEventListener('play',()=>{$('radioPlay').textContent='Ⅱ';render();}); audio()?.addEventListener('pause',()=>{$('radioPlay').textContent='▶';render();});
     audio()?.addEventListener('ended',()=>{if(current<tracks.length-1)setTrack(current+1);else status('Broadcast complete.');});
     $('radioRefresh')?.addEventListener('click',refresh);
