@@ -23,6 +23,7 @@
     ]],
     ["auction", "◆", "Auction", ["auctionHouse"]],
     ["spotlight", "✦", "Hall", ["spotlightSection"]],
+    ["radio", "◉", "Radio", ["radioStation"]],
     ["news", "▤", "News", ["announcements"]],
     ["profile", "◉", "Profile", ["myProfile", "supportMember"]]
   ];
@@ -993,6 +994,7 @@
     const scrollToHall = key === "spotlight";
     if (scrollToHall) key = "home";
     currentRoute = key;
+    window.dispatchEvent(new CustomEvent("ffgc:route", {detail:key}));
 
     for (const [routeKey, , , ids] of routes) {
       for (const id of ids) {
@@ -1029,7 +1031,8 @@
       auction: "ROYAL AUCTION HOUSE",
       spotlight: "HALL OF LEGENDS",
       news: "OFFICIAL BULLETIN",
-      profile: "PLAYER IDENTITY"
+      profile: "PLAYER IDENTITY",
+      radio: "THE VOICE OF THE ARENA"
     };
 
     const title = heading?.querySelector("h1");
@@ -1254,7 +1257,7 @@
         home.querySelector("#v5Quick").appendChild(tile);
       }
 
-      if (["home", "ranks", "events", "auction", "profile"].includes(key)) {
+      if (["home", "ranks", "radio", "events", "auction", "profile"].includes(key)) {
         const mobileButton = create(
           "button",
           "v5-bottom-btn",
@@ -1292,6 +1295,37 @@
 
     // Show published Spotlight achievements immediately on website load.
     // Move the existing element (do not clone it) so app.js keeps its data and handlers.
+    if (!$('radioStation')) {
+      const radio = create('section', 'v5-section ffgc-radio-section', `
+        <div class="radio-hero">
+          <div class="radio-live-pill"><i></i> FFGC BROADCAST NETWORK</div>
+          <div class="radio-brand-mark">◉</div>
+          <p class="radio-kicker">THE OFFICIAL VOICE CHANNEL</p>
+          <h2>FFGC2K26 <span>RADIO</span></h2>
+          <p class="radio-tagline">THE VOICE OF THE ARENA</p>
+          <div class="radio-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        </div>
+        <div class="radio-player-card" id="radioPlayerCard">
+          <div class="radio-now-label">NOW PLAYING</div>
+          <div class="radio-current-title" id="radioCurrentTitle">Choose a broadcast</div>
+          <div class="radio-current-desc" id="radioCurrentDesc">Official FFGC2K26 voice broadcasts appear here.</div>
+          <div class="radio-wave" id="radioWave"></div>
+          <audio id="radioAudio" preload="metadata"></audio>
+          <div class="radio-progress-row"><span id="radioElapsed">0:00</span><input id="radioSeek" type="range" min="0" max="1000" value="0"><span id="radioDuration">0:00</span></div>
+          <div class="radio-controls">
+            <button id="radioPrev" aria-label="Previous">|◀</button><button id="radioBack" aria-label="Rewind 10 seconds">↶10</button><button id="radioPlay" class="radio-play-btn" aria-label="Play">▶</button><button id="radioForward" aria-label="Forward 10 seconds">10↷</button><button id="radioNext" aria-label="Next">▶|</button>
+          </div>
+          <div class="radio-extra-controls"><label>PLAYBACK SPEED <select id="radioSpeed"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option><option>1.5</option><option>2</option></select>x</label><label class="radio-volume">VOLUME <input id="radioVolume" type="range" min="0" max="1" step="0.05" value="1"></label></div>
+          <p class="radio-player-status" id="radioStatus">Ready when you are.</p>
+        </div>
+        <div class="radio-library-head"><div><small>THE BROADCAST ARCHIVE</small><h3>Voice Library</h3></div><button id="radioRefresh" type="button">↻ Refresh</button></div>
+        <div class="radio-track-list" id="radioTrackList"><div class="radio-loading">Loading broadcasts…</div></div>
+        <div class="radio-footnote">FFGC2K26 RADIO · EVERY VOICE HAS A STORY</div>
+      `);
+      radio.id='radioStation';
+      main.appendChild(radio);
+    }
+
     const spotlightHome = $("spotlightSection");
     if (spotlightHome) {
       spotlightHome.classList.remove("v5-route-hidden");
@@ -1310,7 +1344,8 @@
       "eliminationArena",
       "myProfile",
       "supportMember",
-      "spotlightSection"
+      "spotlightSection",
+      "radioStation"
     ];
 
     for (const id of sections) {
@@ -1362,6 +1397,10 @@
           <button type="button" id="ffgcProfileEconomy" class="ffgc-obsidian-btn">
             <span class="ffgc-obsidian-icon">◈</span>
             <span><strong>ECONOMIC EMPIRE</strong><small>Enter the marketplace ↗</small></span>
+          </button>
+          <button type="button" id="ffgcProfileRadio" class="ffgc-obsidian-btn" onclick="location.href='/radio-admin'">
+            <span class="ffgc-obsidian-icon">◉</span>
+            <span><strong>RADIO CONTROL ROOM</strong><small>Manage voice broadcasts ↗</small></span>
           </button>
           <button type="button" id="ffgcProfileAdmin" class="ffgc-obsidian-btn">
             <span class="ffgc-obsidian-icon">♛</span>
