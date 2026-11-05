@@ -391,7 +391,7 @@ async function api(req, res, url) {
 
       for await (const c of req) {
         size += c.length;
-        if (size > 100000) throw Error('Payload too large');
+        if (size > (url.pathname === '/api/voice/admin' ? 14000000 : 100000)) throw Error('Payload too large');
         chunks.push(c);
       }
 
@@ -413,6 +413,74 @@ async function api(req, res, url) {
   }
 
 
+
+  // VOICE CENTER: isolated metadata + private Supabase Storage bucket.
+  if (route.startsWith('/api/voice/')) {
+    const member = memberSession(req);
+    const bucket = 'ffgc2k26-voice';
+    db.voiceBroadcasts ||= [];
+    const storageHeaders = { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY };
+    const ensureBucket = async () => {
+      const r = await fetch(SUPABASE_URL + '/storage/v1/bucket', {
+        method: 'POST', headers: { ...storageHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: bucket, name: bucket, public: false, file_size_limit: 10000000,
+          allowed_mime_types: ['audio/mpeg','audio/mp4','audio/x-m4a','audio/wav','audio/ogg','audio/webm'] })
+      });
+      if (r.ok || r.status === 409) return;
+      const detail = await r.text().catch(() => '');
+      throw Error('Voice Storage bucket setup failed: HTTP ' + r.status + ' ' + detail.slice(0,180));
+    };
+    const safeBroadcast = x => ({ id:x.id, title:x.title, note:x.note, mime:x.mime, size:x.size, createdAt:x.createdAt, createdBy:x.createdBy });
+
+    if (route === '/api/voice/state' && req.method === 'GET') {
+      if (!member && !admin) return bad(res, 'Login with your private member ID first', 401);
+      return send(res, 200, { admin, member: member ? { id:member.id, name:member.name } : null,
+        broadcasts: db.voiceBroadcasts.filter(x => !x.deleted).map(safeBroadcast) });
+    }
+    if (route === '/api/voice/audio' && req.method === 'GET') {
+      if (!member && !admin) return bad(res, 'Login required', 401);
+      const item = db.voiceBroadcasts.find(x => x.id === url.searchParams.get('id') && !x.deleted);
+      if (!item) return bad(res, 'Audio not found', 404);
+      const r = await fetch(SUPABASE_URL + '/storage/v1/object/' + bucket + '/' + item.path, { headers: storageHeaders });
+      if (!r.ok) return bad(res, 'Audio could not be loaded', 502);
+      res.writeHead(200, { 'Content-Type': item.mime, 'Content-Length': item.size, 'Cache-Control':'private, no-store', 'X-Content-Type-Options':'nosniff', 'Content-Disposition':'inline' });
+      return res.end(Buffer.from(await r.arrayBuffer()));
+    }
+    if (route === '/api/voice/admin' && req.method === 'POST') {
+      if (!admin) return bad(res, 'God Admin authentication required', 403);
+      if (b.action === 'publish') {
+        if (typeof b.title !== 'string' || !b.title.trim() || b.title.length > 90) return bad(res, 'Enter a title (maximum 90 characters)');
+        if (typeof b.audio !== 'string' || !/^data:audio\/(mpeg|mp4|x-m4a|wav|ogg|webm);base64,[A-Za-z0-9+/=]+$/.test(b.audio)) return bad(res, 'Choose a supported audio file');
+        const match = b.audio.match(/^data:(audio\/[a-z0-9.+-]+);base64,(.*)$/s);
+        const data = Buffer.from(match[2], 'base64');
+        if (!data.length || data.length > 10000000) return bad(res, 'Audio must be 10 MB or smaller');
+        const ext = ({'audio/mpeg':'mp3','audio/mp4':'m4a','audio/x-m4a':'m4a','audio/wav':'wav','audio/ogg':'ogg','audio/webm':'webm'})[match[1]];
+        if (!ext) return bad(res, 'Unsupported audio format');
+        await ensureBucket();
+        const id = crypto.randomUUID();
+        const objectPath = new Date().toISOString().slice(0,10) + '/' + id + '.' + ext;
+        const upload = await fetch(SUPABASE_URL + '/storage/v1/object/' + bucket + '/' + objectPath, {
+          method:'POST', headers:{...storageHeaders,'Content-Type':match[1],'x-upsert':'false'}, body:data
+        });
+        if (!upload.ok) { const detail=await upload.text().catch(()=> ''); throw Error('Voice upload failed: HTTP '+upload.status+' '+detail.slice(0,180)); }
+        const item = { id, title:b.title.trim(), note:typeof b.note==='string'?b.note.trim().slice(0,240):'', mime:match[1], size:data.length, path:objectPath, createdAt:new Date().toISOString(), createdBy:ADMIN_USER };
+        db.voiceBroadcasts.unshift(item);
+        await save();
+        return send(res, 200, { ok:true, broadcast:safeBroadcast(item) });
+      }
+      if (b.action === 'delete') {
+        const item = db.voiceBroadcasts.find(x => x.id === b.id && !x.deleted);
+        if (!item) return bad(res, 'Broadcast not found', 404);
+        const remove = await fetch(SUPABASE_URL + '/storage/v1/object/' + bucket, { method:'DELETE', headers:{...storageHeaders,'Content-Type':'application/json'}, body:JSON.stringify({prefixes:[item.path]}) });
+        if (!remove.ok && remove.status !== 404) return bad(res, 'Could not delete audio from storage', 502);
+        item.deleted = true;
+        await save();
+        return send(res, 200, {ok:true});
+      }
+      return bad(res, 'Unknown Voice Center action');
+    }
+    return bad(res, 'Not found', 404);
+  }
 
   // ELIMINATION ARENA: independent from existing polls and nominations.
   // Stored inside the same Supabase JSON row; no migration or reset required.
@@ -1548,6 +1616,7 @@ const types = {
 
 const allowedFiles = new Set([
   'index.html',
+  'voice-center.html',
   'app.js',
   'style.css',
 
