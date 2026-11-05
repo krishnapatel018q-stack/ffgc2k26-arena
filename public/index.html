@@ -418,7 +418,6 @@ body.economic-empire-open {
           <option value="public">Public / Online</option>
           <option value="maintenance">Maintenance Mode</option>
           <option value="private">Private / Locked</option>
-          <option value="shutdown">God Admin Emergency Shutdown</option>
         </select>
 
         <button id="saveMode">
@@ -856,9 +855,9 @@ body.economic-empire-open {
 <script src="/chamber.js"></script>
 <script src="/elimination.js?v=20261025-stability3"></script>
 <script src="/radio.js?v=private-gate-3" defer></script>
-<script src="/radio-admin.js?v=20261105-controlroom-fix" defer></script>
+<script src="/radio-admin.js?v=god-admin-embedded-1" defer></script>
 <script src="/royale.js" defer></script>
-<script src="/member5.js?v=20261105-adminroute-fix" defer></script>
+<script src="/member5.js?v=hall-home-20261029" defer></script>
 
 <!-- QUICK ACCESS CONTROLS -->
 
@@ -871,28 +870,19 @@ body.economic-empire-open {
 
     adminPanel.classList.remove('hidden');
     adminPanel.classList.add('ffgcAdminVisible');
-
-    document.querySelector('[data-v5-route="profile"]')?.click();
-    adminPanel.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start'
-    });
+    adminPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   document.addEventListener('click', function(event) {
     if (event.target.closest('#ffgcProfileAdmin')) {
-      document.getElementById('adminBtn')?.click();
+      openAdmin();
     }
     if (event.target.closest('#ffgcProfileEconomy')) openEconomy();
   });
 
-  // The member layout is created by a deferred script; keep the profile route
-  // selected when a God Admin deep link is opened before that layout exists.
   if (location.hash === '#admin') {
     openAdmin();
   }
-
-  document.getElementById('adminBtn')?.addEventListener('click', openAdmin);
 
   const overlay =
     document.getElementById('economicEmpireOverlay');

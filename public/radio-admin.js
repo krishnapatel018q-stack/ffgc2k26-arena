@@ -14,6 +14,6 @@
  $('radioAdminList').addEventListener('click',async e=>{const b=e.target.closest('[data-action]');if(!b)return;const action=b.dataset.action,id=b.dataset.id;try{if(action==='delete'&&!confirm('Permanently delete this recording?'))return;let body={action,id};if(action==='edit'){const title=prompt('New broadcast title');if(title===null)return;const description=prompt('New description')??'';body={...body,title,description};}await api('/api/radio/manage',body);say('Broadcast updated.');await refresh();}catch(err){say(err.message);}});
  $('radioAdminRefresh').addEventListener('click',refresh);refresh();
  }
- function maybeInit(){const dash=$('dashboard');if(!dash||!dash.classList.contains('hidden'))init();}
+ function maybeInit(){const dash=$('dashboard');if(dash&&!dash.classList.contains('hidden'))init();}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{maybeInit();const dash=$('dashboard');if(dash)new MutationObserver(maybeInit).observe(dash,{attributes:true,attributeFilter:['class']});});else{maybeInit();const dash=$('dashboard');if(dash)new MutationObserver(maybeInit).observe(dash,{attributes:true,attributeFilter:['class']});}
 })();

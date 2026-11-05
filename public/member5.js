@@ -991,17 +991,12 @@
       key = "home";
     }
 
-    const scrollToHall = key === "spotlight";
-    if (scrollToHall) key = "home";
     currentRoute = key;
     window.dispatchEvent(new CustomEvent("ffgc:route", {detail:key}));
 
     for (const [routeKey, , , ids] of routes) {
       for (const id of ids) {
         const section = $(id);
-
-        // Hall of Spotlight belongs to the homepage, always visible there.
-        if (id === "spotlightSection") continue;
 
         if (section) {
           section.classList.toggle(
@@ -1060,11 +1055,7 @@
       );
     } catch {}
 
-    if (scrollToHall) {
-      $("spotlightSection")?.scrollIntoView({behavior:"smooth",block:"start"});
-    } else {
-      window.scrollTo({top:0,behavior:"smooth"});
-    }
+    window.scrollTo({top:0,behavior:"smooth"});
   }
 
   function buildLayout() {
@@ -1326,13 +1317,6 @@
       main.appendChild(radio);
     }
 
-    const spotlightHome = $("spotlightSection");
-    if (spotlightHome) {
-      spotlightHome.classList.remove("v5-route-hidden");
-      spotlightHome.classList.add("ffgc-home-spotlight");
-      home.insertBefore(spotlightHome, home.firstChild);
-    }
-
     const sections = [
       "leaderboard",
       "teams",
@@ -1390,6 +1374,7 @@
     // Profile-only management shortcuts; keep the mobile nav unchanged.
     const profileSection = $("myProfile");
     const adminSection = $("admin");
+    if (adminSection && adminSection.parentElement !== main) main.appendChild(adminSection);
     if (profileSection) {
       if (!$('ffgcProfileActions')) {
         const actions = create('div', 'ffgc-profile-actions', `
@@ -1410,8 +1395,6 @@
         actions.id = 'ffgcProfileActions';
         profileSection.appendChild(actions);
       }
-      // Admin stays under Profile, not as a separate floating page.
-      if (adminSection) profileSection.appendChild(adminSection);
     }
 
     // Member navigation.
@@ -1492,7 +1475,6 @@
     const hash = (location.hash || "").slice(1);
 
     const legacy = {
-      admin: "profile",
       leaderboard: "ranks",
       tasks: "events",
       polls: "events",
