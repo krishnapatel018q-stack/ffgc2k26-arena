@@ -235,18 +235,6 @@ function memberSession(req) {
     return m && m.codeHash && secureEq(m.codeHash,d.codeHash) ? m : null;
   } catch { return null; }
 }
-function radioSession(req) {
-  const raw = (req.headers.cookie || '').split(';').map(x => x.trim()).find(x => x.startsWith('ffgc_radio='));
-  if (!raw) return null;
-  const t = raw.slice('ffgc_radio='.length), i = t.lastIndexOf('.');
-  if (i < 0 || !secureEq(sign('radio:' + t.slice(0, i)), t.slice(i + 1))) return null;
-  try {
-    const d = JSON.parse(Buffer.from(t.slice(0, i), 'base64url'));
-    if (d.exp < Date.now()) return null;
-    const m = db.members.find(x => x.id === d.id);
-    return m && m.codeHash && secureEq(m.codeHash, d.codeHash) ? m : null;
-  } catch { return null; }
-}
 function safeProfile(m, detailed=false) {
   const pr=m.profile||{};
   const team=db.teams.find(t => t.members?.includes(m.id));
@@ -403,7 +391,7 @@ async function api(req, res, url) {
 
       for await (const c of req) {
         size += c.length;
-        if (size > (url.pathname === '/api/radio/upload' ? 35000000 : 100000)) throw Error('Payload too large');
+        if (size > 100000) throw Error('Payload too large');
         chunks.push(c);
       }
 
@@ -422,94 +410,6 @@ async function api(req, res, url) {
     if (route === '/api/public' && req.method === 'GET') return send(res,200,{settings:{siteMode:'shutdown'},locked:true,leaderboard:[],tasks:[],announcements:[],polls:[],teams:[],spotlight:[],publicProfiles:[],admin:false});
     if (route === '/api/login' && req.method === 'POST') { /* permit God Admin login below */ }
     else return bad(res,'Arena temporarily closed by God Admin',503);
-  }
-
-  // FFGC2K26 RADIO — metadata stays in the existing arena_data JSON row.
-  // Audio binaries live in a private Supabase Storage bucket; no database reset/migration.
-  if (route.startsWith('/api/radio/')) {
-    db.radioTracks ||= [];
-    const storageBase = SUPABASE_URL + '/storage/v1';
-    const radioBucket = 'ffgc-radio';
-    const radioHeaders = { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY };
-    if (route === '/api/radio/access' && req.method === 'GET') {
-      const member = radioSession(req);
-      return member || admin ? send(res,200,{authorized:true,admin:!!admin,member:member?{id:member.id,name:member.name}:null}) : send(res,200,{authorized:false});
-    }
-    if (route === '/api/radio/access' && req.method === 'POST') {
-      if (!required(b.code,100)) return bad(res,'Enter your Private ID');
-      const code = String(b.code).trim().toUpperCase();
-      const member = db.members.find(m => m.codeHash && secureEq(m.codeHash,hash(code)));
-      if (!member) return bad(res,'Invalid private member ID',403);
-      const value = Buffer.from(JSON.stringify({id:member.id,codeHash:member.codeHash,exp:Date.now()+7*86400000})).toString('base64url');
-      res.setHeader('Set-Cookie',`ffgc_radio=${value}.${sign('radio:'+value)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800${process.env.COOKIE_SECURE==='true'?'; Secure':''}`);
-      return send(res,200,{ok:true,authorized:true,name:member.name});
-    }
-    if (route === '/api/radio/access' && req.method === 'DELETE') {
-      res.setHeader('Set-Cookie','ffgc_radio=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
-      return send(res,200,{ok:true});
-    }
-    async function ensureRadioBucket() {
-      const r = await fetch(storageBase + '/bucket/' + radioBucket, { headers: radioHeaders });
-      if (r.ok) return;
-      const create = await fetch(storageBase + '/bucket', { method:'POST', headers:{...radioHeaders,'Content-Type':'application/json'}, body:JSON.stringify({id:radioBucket,name:radioBucket,public:false,file_size_limit:26214400}) });
-      if (!create.ok && create.status !== 409) throw Error('Radio storage bucket setup failed: HTTP ' + create.status);
-    }
-    async function signedAudio(path) {
-      const r = await fetch(storageBase + '/object/sign/' + radioBucket + '/' + path.split('/').map(encodeURIComponent).join('/'), {method:'POST',headers:{...radioHeaders,'Content-Type':'application/json'},body:JSON.stringify({expiresIn:3600})});
-      if (!r.ok) throw Error('Could not prepare audio playback URL');
-      const data = await r.json();
-      return data.signedURL?.startsWith('http') ? data.signedURL : SUPABASE_URL + '/storage/v1' + data.signedURL;
-    }
-    if (route === '/api/radio/tracks' && req.method === 'GET') {
-      const member = radioSession(req);
-      // Only members verified with an issued Radio Private ID may listen. God Admin can use this
-      // endpoint only inside the separate control room to manage draft tracks.
-      if (!member && !admin) return bad(res,'Member login required',401);
-      const tracks = db.radioTracks.filter(t => admin || t.published).sort((a,b) => (a.order||0)-(b.order||0) || Date.parse(b.createdAt)-Date.parse(a.createdAt));
-      const result=[];
-      for (const t of tracks) result.push({...t,audioUrl:await signedAudio(t.path)});
-      return send(res,200,{tracks:result,admin});
-    }
-    if (route === '/api/radio/upload' && req.method === 'POST') {
-      if (!admin) return bad(res,'God Admin access required',403);
-      const title=String(b.title||'').trim(), description=String(b.description||'').trim();
-      const mime=String(b.mimeType||'').toLowerCase(), filename=String(b.filename||'voice-note').replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,100);
-      if(!title||title.length>100||description.length>500) return bad(res,'Enter a title (max 100) and description (max 500)');
-      if(!mime.startsWith('audio/')) return bad(res,'Only audio files are allowed');
-      if(typeof b.dataBase64!=='string'||b.dataBase64.length<20||b.dataBase64.length>35000000) return bad(res,'Audio file is missing or exceeds 25 MB');
-      const bytes=Buffer.from(b.dataBase64,'base64');
-      if(!bytes.length||bytes.length>26214400) return bad(res,'Audio file must be 25 MB or smaller');
-      await ensureRadioBucket();
-      const pathKey=crypto.randomUUID()+'-'+filename;
-      const up=await fetch(storageBase+'/object/'+radioBucket+'/'+pathKey,{method:'POST',headers:{...radioHeaders,'Content-Type':mime,'x-upsert':'false'},body:bytes});
-      if(!up.ok) return bad(res,'Audio storage upload failed: '+(await up.text()).slice(0,180),502);
-      const track={id:crypto.randomUUID(),title,description,filename,path:pathKey,mimeType:mime,size:bytes.length,duration:Math.max(0,Number(b.duration)||0),createdAt:new Date().toISOString(),published:false,plays:0,order:db.radioTracks.length};
-      db.radioTracks.push(track); await save();
-      return send(res,200,{ok:true,track});
-    }
-    if (route === '/api/radio/manage' && req.method === 'POST') {
-      if (!admin) return bad(res,'God Admin access required',403);
-      const t=db.radioTracks.find(x=>x.id===b.id);
-      if(!t) return bad(res,'Recording not found',404);
-      if(b.action==='publish'||b.action==='unpublish') t.published=b.action==='publish';
-      else if(b.action==='edit') {const title=String(b.title||'').trim(),description=String(b.description||'').trim();if(!title||title.length>100||description.length>500)return bad(res,'Invalid title or description');t.title=title;t.description=description;}
-      else if(b.action==='delete') {await fetch(storageBase+'/object/'+radioBucket+'/'+t.path.split('/').map(encodeURIComponent).join('/'),{method:'DELETE',headers:radioHeaders});db.radioTracks=db.radioTracks.filter(x=>x.id!==t.id);}
-      else if(b.action==='move') {t.order=Number(b.order)||0;}
-      else return bad(res,'Unknown radio action');
-      await save(); return send(res,200,{ok:true});
-    }
-    if (route === '/api/radio/duration' && req.method === 'POST') {
-      const member=radioSession(req); if(!member)return bad(res,'Radio Private ID required',401);
-      const t=db.radioTracks.find(x=>x.id===b.id&&x.published); if(!t)return bad(res,'Recording not found',404);
-      const duration=Number(b.duration); if(!Number.isFinite(duration)||duration<=0||duration>86400)return bad(res,'Invalid audio duration');
-      t.duration=duration; await save(); return send(res,200,{ok:true,duration});
-    }
-    if (route === '/api/radio/play' && req.method === 'POST') {
-      const member=radioSession(req); if(!member)return bad(res,'Radio Private ID required',401);
-      const t=db.radioTracks.find(x=>x.id===b.id&&x.published); if(!t)return bad(res,'Recording not found',404);
-      t.plays=(t.plays||0)+1; t.lastPlayedAt=new Date().toISOString(); await save(); return send(res,200,{ok:true});
-    }
-    return bad(res,'Radio route not found',404);
   }
 
 
@@ -1577,77 +1477,26 @@ function econNotify(e,memberId,message){e.notifications.unshift({id:crypto.rando
 function econBusinessLevel(owned){return Math.max(1,Math.min(5,owned.level||1));}
 function econMaintenance(t,owned){return Math.round(t.maintenance*(1+.25*(econBusinessLevel(owned)-1)));}
 function econIncome(t,owned){return Math.round(t.income*(1+.3*(econBusinessLevel(owned)-1)));}
-function econAutoMarket(e, now) {
-  // Never simulate overnight ticks. Market movement is limited to live market hours.
-  if (!econMarketOpen(e) || e.autoMarket === false) {
-    e.lastAutoTick = now;
-    return false;
-  }
+function econAutoMarket(e,now){
+ if(!econMarketOpen(e)||e.autoMarket===false)return false;
+ const tick=10000, steps=Math.min(360,Math.floor((now-e.lastAutoTick)/tick));if(steps<=0)return false;
+ // Server-side movement persists across redeploys; only completed market-open ticks are applied.
+ e.lastAutoTick=now;let changed=false;
+ const hourKey=Math.floor((now+330*60000)/3600000);
+ if(e.lastEventHour!==hourKey){
+   e.lastEventHour=hourKey;
+   const categories=['Technology Boost','Retail Momentum','Energy Slowdown','Market Stability'];
+   const eventName=categories[hourKey%categories.length];
+   e.marketEvents.unshift({at:now,title:eventName});e.marketEvents=e.marketEvents.slice(0,30);
+   econRecord(e,'market_event',null,eventName);changed=true;
+ }
 
-  const tickMs = 10000;
-  const previousTick = Number(e.lastAutoTick) || now;
-  const steps = Math.min(360, Math.max(0, Math.floor((now - previousTick) / tickMs)));
-  if (steps <= 0) return false;
-
-  const firstTickAt = now - steps * tickMs;
-  e.lastAutoTick = now;
-  let changed = false;
-
-  const hourKey = Math.floor((now + 330 * 60000) / 3600000);
-  e.marketEvents ||= [];
-  if (e.lastEventHour !== hourKey) {
-    e.lastEventHour = hourKey;
-    const categories = [
-      'Technology Boost',
-      'Retail Momentum',
-      'Energy Slowdown',
-      'Market Stability'
-    ];
-    const eventName = categories[hourKey % categories.length];
-    e.marketEvents.unshift({ at: now, title: eventName });
-    e.marketEvents = e.marketEvents.slice(0, 30);
-    econRecord(e, 'market_event', null, eventName);
-    changed = true;
-  }
-
-  for (const co of e.companies) {
-    if (
-      co.archived ||
-      co.frozen ||
-      e.schedules.some(sc => sc.companyId === co.id && sc.status === 'running')
-    ) continue;
-
-    co.history ||= [];
-
-    // Replay each missed 10-second interval independently so the graph
-    // receives real intermediate points rather than one end-of-window point.
-    for (let i = 1; i <= steps; i++) {
-      const tickAt = firstTickAt + i * tickMs;
-      const tickNumber = Math.floor(tickAt / tickMs);
-      const seed = crypto
-        .createHash('sha256')
-        .update(co.id + ':' + tickNumber)
-        .digest()
-        .readUInt32BE(0) / 4294967295;
-      const drift = (seed - 0.5) * 0.008;
-      const nextPrice = Math.max(1, Math.round(co.price * (1 + drift)));
-
-      if (nextPrice !== co.price) {
-        co.price = nextPrice;
-        co.history.push({
-          at: new Date(tickAt).toISOString(),
-          price: nextPrice
-        });
-        changed = true;
-      }
-    }
-
-    if (co.history.length > 2000) {
-      co.history.splice(0, co.history.length - 2000);
-    }
-  }
-
-  return changed;
+ for(const co of e.companies){if(co.archived||co.frozen||e.schedules.some(sc=>sc.companyId===co.id&&sc.status==='running'))continue;
+  const old=co.price;const seed=crypto.createHash('sha256').update(co.id+':'+Math.floor(now/tick)).digest().readUInt32BE(0)/4294967295;
+  const drift=(seed-.5)*.008;const next=Math.max(1,Math.round(co.price*(1+drift)));
+  if(next!==old){co.price=next;co.history ||= [];co.history.push({at:new Date(now).toISOString(),price:next});if(co.history.length>2000)co.history.splice(0,co.history.length-2000);changed=true;}
+ }
+ return changed;
 }
 function econSettle(){
   if(!db.economy)return false;
@@ -1713,10 +1562,6 @@ const allowedFiles = new Set([
   'royale6.css',
   'obsidian.css',
 
-  // FFGC OS Mobile Edition
-  'ffgc-os.js',
-  'ffgc-os.css',
-
   // Auction House
   'auction.js',
   'auction.css',
@@ -1733,12 +1578,7 @@ const allowedFiles = new Set([
 
   // Elimination Arena
   'elimination.js',
-  'elimination.css',
-
-  // FFGC2K26 Radio
-  'radio.js',
-  'radio.css',
-  'radio-admin.js'
+  'elimination.css'
 ]);
 
 let requestQueue = Promise.resolve();
@@ -1765,20 +1605,6 @@ const server = http.createServer((req, res) => {
 
     requestQueue = requestQueue.then(run, run);
     return;
-  }
-
-  // Dedicated Radio Control Room. API endpoints still enforce God Admin access.
-  if (u.pathname === '/radio-admin') {
-    if (!isAdmin(req)) {
-      res.writeHead(302, {'Location': '/#admin', 'Cache-Control': 'no-store'});
-      return res.end();
-    }
-    res.writeHead(200, {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff'
-    });
-    return res.end(fs.readFileSync(path.join(ROOT, 'public', 'radio-admin.html')));
   }
 
   // GOD ADMIN ACCESS
