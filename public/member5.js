@@ -23,7 +23,6 @@
     ]],
     ["auction", "◆", "Auction", ["auctionHouse"]],
     ["spotlight", "✦", "Hall", ["spotlightSection"]],
-    ["radio", "◉", "Radio", ["radioStation"]],
     ["news", "▤", "News", ["announcements"]],
     ["profile", "◉", "Profile", ["myProfile", "supportMember"]]
   ];
@@ -991,12 +990,16 @@
       key = "home";
     }
 
+    const scrollToHall = key === "spotlight";
+    if (scrollToHall) key = "home";
     currentRoute = key;
-    window.dispatchEvent(new CustomEvent("ffgc:route", {detail:key}));
 
     for (const [routeKey, , , ids] of routes) {
       for (const id of ids) {
         const section = $(id);
+
+        // Hall of Spotlight belongs to the homepage, always visible there.
+        if (id === "spotlightSection") continue;
 
         if (section) {
           section.classList.toggle(
@@ -1026,8 +1029,7 @@
       auction: "ROYAL AUCTION HOUSE",
       spotlight: "HALL OF LEGENDS",
       news: "OFFICIAL BULLETIN",
-      profile: "PLAYER IDENTITY",
-      radio: "THE VOICE OF THE ARENA"
+      profile: "PLAYER IDENTITY"
     };
 
     const title = heading?.querySelector("h1");
@@ -1055,7 +1057,11 @@
       );
     } catch {}
 
-    window.scrollTo({top:0,behavior:"smooth"});
+    if (scrollToHall) {
+      $("spotlightSection")?.scrollIntoView({behavior:"smooth",block:"start"});
+    } else {
+      window.scrollTo({top:0,behavior:"smooth"});
+    }
   }
 
   function buildLayout() {
@@ -1248,7 +1254,7 @@
         home.querySelector("#v5Quick").appendChild(tile);
       }
 
-      if (["home", "ranks", "radio", "events", "auction", "profile"].includes(key)) {
+      if (["home", "ranks", "events", "auction", "profile"].includes(key)) {
         const mobileButton = create(
           "button",
           "v5-bottom-btn",
@@ -1286,35 +1292,11 @@
 
     // Show published Spotlight achievements immediately on website load.
     // Move the existing element (do not clone it) so app.js keeps its data and handlers.
-    if (!$('radioStation')) {
-      const radio = create('section', 'v5-section ffgc-radio-section', `
-        <div class="radio-hero">
-          <div class="radio-live-pill"><i></i> FFGC BROADCAST NETWORK</div>
-          <div class="radio-brand-mark">◉</div>
-          <p class="radio-kicker">THE OFFICIAL VOICE CHANNEL</p>
-          <h2>FFGC2K26 <span>RADIO</span></h2>
-          <p class="radio-tagline">THE VOICE OF THE ARENA</p>
-          <div class="radio-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-        </div>
-        <div class="radio-player-card" id="radioPlayerCard" hidden>
-          <div class="radio-now-label">NOW PLAYING</div>
-          <div class="radio-current-title" id="radioCurrentTitle">Choose a broadcast</div>
-          <div class="radio-current-desc" id="radioCurrentDesc">Official FFGC2K26 voice broadcasts appear here.</div>
-          <div class="radio-wave" id="radioWave"></div>
-          <audio id="radioAudio" preload="metadata"></audio>
-          <div class="radio-progress-row"><span id="radioElapsed">0:00</span><input id="radioSeek" type="range" min="0" max="1000" value="0"><span id="radioDuration">0:00</span></div>
-          <div class="radio-controls">
-            <button id="radioPrev" aria-label="Previous">|◀</button><button id="radioBack" aria-label="Rewind 10 seconds">↶10</button><button id="radioPlay" class="radio-play-btn" aria-label="Play">▶</button><button id="radioForward" aria-label="Forward 10 seconds">10↷</button><button id="radioNext" aria-label="Next">▶|</button>
-          </div>
-          <div class="radio-extra-controls"><label>PLAYBACK SPEED <select id="radioSpeed"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option><option>1.5</option><option>2</option></select>x</label><label class="radio-volume">VOLUME <input id="radioVolume" type="range" min="0" max="1" step="0.05" value="1"></label></div>
-          <p class="radio-player-status" id="radioStatus">Ready when you are.</p>
-        </div>
-        <div class="radio-library-head" id="radioLibraryHead" hidden><div><small>THE BROADCAST ARCHIVE</small><h3>Voice Library</h3></div><button id="radioRefresh" type="button">↻ Refresh</button></div>
-        <div class="radio-track-list" id="radioTrackList" hidden><div class="radio-loading">Loading broadcasts…</div></div>
-        <div class="radio-footnote" id="radioFootnote" hidden>FFGC2K26 RADIO · EVERY VOICE HAS A STORY</div>
-      `);
-      radio.id='radioStation';
-      main.appendChild(radio);
+    const spotlightHome = $("spotlightSection");
+    if (spotlightHome) {
+      spotlightHome.classList.remove("v5-route-hidden");
+      spotlightHome.classList.add("ffgc-home-spotlight");
+      home.insertBefore(spotlightHome, home.firstChild);
     }
 
     const sections = [
@@ -1328,8 +1310,7 @@
       "eliminationArena",
       "myProfile",
       "supportMember",
-      "spotlightSection",
-      "radioStation"
+      "spotlightSection"
     ];
 
     for (const id of sections) {
@@ -1374,7 +1355,6 @@
     // Profile-only management shortcuts; keep the mobile nav unchanged.
     const profileSection = $("myProfile");
     const adminSection = $("admin");
-    if (adminSection && adminSection.parentElement !== main) main.appendChild(adminSection);
     if (profileSection) {
       if (!$('ffgcProfileActions')) {
         const actions = create('div', 'ffgc-profile-actions', `
@@ -1382,10 +1362,6 @@
           <button type="button" id="ffgcProfileEconomy" class="ffgc-obsidian-btn">
             <span class="ffgc-obsidian-icon">◈</span>
             <span><strong>ECONOMIC EMPIRE</strong><small>Enter the marketplace ↗</small></span>
-          </button>
-          <button type="button" id="ffgcProfileRadio" class="ffgc-obsidian-btn" onclick="location.href='/radio-admin'">
-            <span class="ffgc-obsidian-icon">◉</span>
-            <span><strong>RADIO CONTROL ROOM</strong><small>Manage voice broadcasts ↗</small></span>
           </button>
           <button type="button" id="ffgcProfileAdmin" class="ffgc-obsidian-btn">
             <span class="ffgc-obsidian-icon">♛</span>
@@ -1395,6 +1371,8 @@
         actions.id = 'ffgcProfileActions';
         profileSection.appendChild(actions);
       }
+      // Admin stays under Profile, not as a separate floating page.
+      if (adminSection) profileSection.appendChild(adminSection);
     }
 
     // Member navigation.
