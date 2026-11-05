@@ -1713,10 +1713,6 @@ const allowedFiles = new Set([
   'royale6.css',
   'obsidian.css',
 
-  // FFGC OS Mobile Edition
-  'ffgc-os.js',
-  'ffgc-os.css',
-
   // Auction House
   'auction.js',
   'auction.css',
@@ -1738,7 +1734,8 @@ const allowedFiles = new Set([
   // FFGC2K26 Radio
   'radio.js',
   'radio.css',
-  'radio-admin.js'
+  'radio-admin.js',
+  'radio-admin.html'
 ]);
 
 let requestQueue = Promise.resolve();
@@ -1767,11 +1764,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Radio management lives only inside the authenticated God Admin dashboard.
-  // Legacy standalone URL redirects; it never serves a separate control-room page.
-  if (u.pathname === '/radio-admin') {
-    res.writeHead(302, {'Location': '/#admin', 'Cache-Control': 'no-store'});
-    return res.end();
+  // Standalone Radio Control Room is served only to an authenticated God Admin.
+  // Its API endpoints independently enforce admin authentication as well.
+  if (u.pathname === '/radio-admin' || u.pathname === '/radio-admin.html') {
+    if (!isAdmin(req)) {
+      res.writeHead(302, {'Location': '/#admin', 'Cache-Control': 'no-store'});
+      return res.end();
+    }
+    u.pathname = '/radio-admin.html';
   }
 
   // GOD ADMIN ACCESS
