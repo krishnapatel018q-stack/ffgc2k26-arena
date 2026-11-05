@@ -461,8 +461,8 @@ async function api(req, res, url) {
       return data.signedURL?.startsWith('http') ? data.signedURL : SUPABASE_URL + '/storage/v1' + data.signedURL;
     }
     if (route === '/api/radio/tracks' && req.method === 'GET') {
-      const member = radioSession(req);
-      // Only members verified with an issued Radio Private ID may listen. God Admin can use this
+      const member = memberSession(req);
+      // Members with an issued Private ID may listen. God Admin can use this
       // endpoint only inside the separate control room to manage draft tracks.
       if (!member && !admin) return bad(res,'Member login required',401);
       const tracks = db.radioTracks.filter(t => admin || t.published).sort((a,b) => (a.order||0)-(b.order||0) || Date.parse(b.createdAt)-Date.parse(a.createdAt));
@@ -499,7 +499,7 @@ async function api(req, res, url) {
       await save(); return send(res,200,{ok:true});
     }
     if (route === '/api/radio/play' && req.method === 'POST') {
-      const member=radioSession(req); if(!member)return bad(res,'Radio Private ID required',401);
+      const member=memberSession(req); if(!member)return bad(res,'Member login required',401);
       const t=db.radioTracks.find(x=>x.id===b.id&&x.published); if(!t)return bad(res,'Recording not found',404);
       t.plays=(t.plays||0)+1; t.lastPlayedAt=new Date().toISOString(); await save(); return send(res,200,{ok:true});
     }
@@ -1732,6 +1732,7 @@ const allowedFiles = new Set([
   // FFGC2K26 Radio
   'radio.js',
   'radio.css',
+  'radio-admin.html',
   'radio-admin.js'
 ]);
 
@@ -1761,11 +1762,11 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Radio management lives only inside the authenticated God Admin dashboard.
-  // Legacy standalone URL redirects; it never serves a separate control-room page.
+  // God Admin-only Radio Control Room
   if (u.pathname === '/radio-admin') {
-    res.writeHead(302, {'Location': '/#admin', 'Cache-Control': 'no-store'});
-    return res.end();
+    if (!isAdmin(req)) { res.writeHead(302,{Location:'/god-access'}); return res.end(); }
+    res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});
+    return res.end(fs.readFileSync(path.join(ROOT,'public','radio-admin.html')));
   }
 
   // GOD ADMIN ACCESS
