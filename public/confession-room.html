@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080b16">
+<title>FFGC2K26 | Confession Room</title>
+<link rel="stylesheet" href="/confession.css">
+</head>
+<body>
+<header class="top"><a href="/">✦ FFGC<span>2K26</span></a><span>PRIVATE SESSION SYSTEM</span><a class="back" href="/">← Arena</a></header>
+<main class="shell">
+  <section class="hero"><div class="eyebrow">GOD ADMIN CONTROLLED</div><h1>CONFESSION <em>ROOM</em></h1><p>A private space. One invited member. Your questions. Your control.</p></section>
+  <div id="status" class="status">Connecting securely…</div>
+  <section id="adminView" class="hidden">
+    <div class="panel">
+      <div class="panelhead"><div><small>01 / SESSION CONTROL</small><h2>Summon a Member</h2></div><span class="tag">GOD ADMIN</span></div>
+      <div class="formgrid">
+        <label>Choose member<select id="memberSelect"><option value="">Loading members…</option></select></label>
+        <label>Session mode<select id="modeSelect"><option value="text">Text — written replies</option><option value="voice">Voice — recorded voice notes</option><option value="live">Live — real-time microphone</option></select></label>
+        <label class="wide">Schedule date & time <input id="scheduleAt" type="datetime-local"></label>
+      </div>
+      <div class="actions"><button id="summonNow" class="gold">⚡ Instant Summon</button><button id="scheduleBtn" class="secondary">◷ Schedule Summon</button></div>
+      <p class="hint">Only the selected member can open the session. Scheduled invitations become active at the chosen time.</p>
+    </div>
+    <div id="adminSession" class="panel hidden">
+      <div class="panelhead"><div><small>02 / LIVE CONTROL</small><h2 id="sessionTitle">Active Session</h2></div><span id="sessionTag" class="tag live">ACTIVE</span></div>
+      <div id="sessionMeta" class="meta"></div>
+      <div id="adminMessages" class="messages"></div>
+      <div id="sendArea" class="sendarea"><label for="adminText">Your message <span>Hindi in Devanagari only</span></label><textarea id="adminText" rows="3" maxlength="1200" placeholder="अपना प्रश्न यहाँ लिखें…"></textarea><button id="sendSpeak" class="gold">▶ SEND · VIRAJ VOICE</button></div>
+      <div id="liveAdmin" class="livebox hidden"><div><strong>Live microphone connection</strong><p id="liveAdminState">Waiting for connection…</p></div><button id="connectLive" class="secondary">Connect member microphone</button><audio id="adminRemoteAudio" controls autoplay></audio></div>
+      <div id="voiceClips" class="clips"></div>
+      <div class="actions"><button id="refreshAdmin" class="secondary">↻ Refresh session</button><button id="closeSession" class="danger">End Session</button></div>
+    </div>
+    <div class="panel"><div class="panelhead"><div><small>03 / SESSION RECORD</small><h2>Recent Sessions</h2></div></div><div id="recentSessions" class="recent">No sessions yet.</div></div>
+  </section>
+  <section id="memberView" class="panel hidden">
+    <div class="panelhead"><div><small>PRIVATE INVITATION</small><h2 id="memberTitle">Your Confession Room</h2></div><span id="memberTag" class="tag">INVITED</span></div>
+    <div id="memberMeta" class="meta"></div>
+    <button id="enableTts" class="secondary">🔊 Enable Viraj Voice</button>
+    <audio id="memberTtsAudio" class="hidden"></audio>
+    <div id="memberWaiting" class="notice hidden">Your session is scheduled. This room will open at the reporting time.</div>
+    <div id="memberMessages" class="messages"></div>
+    <div id="memberTextArea" class="sendarea hidden"><label for="memberText">Your reply</label><textarea id="memberText" rows="3" maxlength="1200" placeholder="Type your reply…"></textarea><button id="sendReply" class="gold">Send reply</button></div>
+    <div id="memberVoiceArea" class="voicebox hidden"><strong>Voice reply</strong><p>Your voice note will be shared only with GOD ADMIN and deleted when this session ends.</p><label class="consent"><input id="voiceConsent" type="checkbox"> I agree to send this voice note to GOD ADMIN.</label><div class="actions"><button id="recordVoice" class="secondary">● Start recording</button><button id="sendVoice" class="gold" disabled>Send voice note</button></div><audio id="voicePreview" controls class="preview hidden"></audio><p id="recordState" class="hint"></p></div>
+    <div id="memberLive" class="livebox hidden"><div><strong>Live voice session</strong><p id="memberLiveState">Tap below and allow microphone access to connect.</p></div><button id="joinLive" class="gold">Allow microphone & join</button><audio id="memberRemoteAudio" controls autoplay></audio></div>
+    <p class="hint">This invitation is private to your member ID. Messages and voice notes are cleared when the session ends. Live microphone audio is not recorded.</p>
+  </section>
+  <section id="noInvite" class="panel hidden"><h2>No active invitation</h2><p>This private room is available only when GOD ADMIN summons your member account.</p></section>
+</main>
+<script src="/confession.js?v=1"></script>
+</body>
+</html>
