@@ -111,7 +111,7 @@ async function load() {
     await save();
   } else {
     db = value;
-    db.chamber ||= {sessions:[],activeId:null}; db.confessionRoom ||= {sessions:[],activeId:null}; db.teams ||= []; db.spotlight ||= []; db.supportMessages ||= []; db.auctionHouse ||= {cycleStart:Date.now(), auctions:[], inventory:[], enabled:true};
+    db.chamber ||= {sessions:[],activeId:null}; db.teams ||= []; db.spotlight ||= []; db.supportMessages ||= []; db.auctionHouse ||= {cycleStart:Date.now(), auctions:[], inventory:[], enabled:true};
     for (const m of db.members) m.profile ||= {};
   }
 }
@@ -391,7 +391,7 @@ async function api(req, res, url) {
 
       for await (const c of req) {
         size += c.length;
-        if (size > (url.pathname === '/api/voice/admin' ? 14000000 : url.pathname === '/api/confession/voice' ? 11000000 : 100000)) throw Error('Payload too large');
+        if (size > (url.pathname === '/api/voice/admin' ? 14000000 : 100000)) throw Error('Payload too large');
         chunks.push(c);
       }
 
@@ -413,171 +413,6 @@ async function api(req, res, url) {
   }
 
 
-
-  // CONFESSION ROOM: isolated, invite-only sessions. No changes to existing modules.
-  if (route.startsWith('/api/confession/')) {
-    const member = memberSession(req);
-    const room = db.confessionRoom ||= { sessions: [], activeId: null };
-    room.sessions ||= [];
-    let session = room.sessions.find(x => x.id === room.activeId) || null;
-    const bucket = 'ffgc2k26-confession';
-    const storageHeaders = { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY };
-    const ensureBucket = async () => {
-      const r = await fetch(SUPABASE_URL + '/storage/v1/bucket', {
-        method: 'POST', headers: { ...storageHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: bucket, name: bucket, public: false, file_size_limit: 10000000,
-          allowed_mime_types: ['audio/mpeg','audio/mp4','audio/x-m4a','audio/wav','audio/ogg','audio/webm'] })
-      });
-      if (r.ok || r.status === 409) return;
-      throw Error('Confession storage setup failed: HTTP ' + r.status);
-    };
-    const putAudio = async (bytes, mime, ext) => {
-      await ensureBucket();
-      const objectPath = new Date().toISOString().slice(0,10) + '/' + crypto.randomUUID() + '.' + ext;
-      const r = await fetch(SUPABASE_URL + '/storage/v1/object/' + bucket + '/' + objectPath, {
-        method: 'POST', headers: { ...storageHeaders, 'Content-Type': mime, 'x-upsert': 'false' }, body: bytes
-      });
-      if (!r.ok) throw Error('Confession audio upload failed: HTTP ' + r.status);
-      return objectPath;
-    };
-    const deleteAudio = async objectPath => {
-      if (!objectPath) return;
-      const r = await fetch(SUPABASE_URL + '/storage/v1/object/' + bucket, {
-        method: 'DELETE', headers: { ...storageHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prefixes: [objectPath] })
-      });
-      if (!r.ok && r.status !== 404) throw Error('Could not clear private Confession Room audio from storage');
-    };
-    const invited = !!(member && session && session.memberId === member.id && session.status !== 'closed');
-    const safeSession = (x, forAdmin) => ({
-      id: x.id, memberId: x.memberId, memberName: db.members.find(m => m.id === x.memberId)?.name || 'Member',
-      mode: x.mode, status: x.status, scheduledAt: x.scheduledAt, createdAt: x.createdAt,
-      messages: (x.messages || []).map(m => ({ id:m.id, from:m.from, text:m.text, at:m.at, audioId:m.audioId || null })),
-      voiceClips: forAdmin ? (x.voiceClips || []).map(v => ({ id:v.id, at:v.at, mime:v.mime, size:v.size })) : [],
-      signalSeq: x.signalSeq || 0
-    });
-
-    if (route === '/api/confession/state' && req.method === 'GET') {
-      if (!admin && !member) return bad(res, 'Login with your private member ID first', 401);
-      if (session && session.status === 'scheduled' && session.scheduledAt <= Date.now()) {
-        session.status = 'active'; await save();
-      }
-      const iceServers=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}];
-      if(process.env.TURN_URL && process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL) iceServers.push({urls:process.env.TURN_URL,username:process.env.TURN_USERNAME,credential:process.env.TURN_CREDENTIAL});
-      if (admin) return send(res, 200, { admin:true, iceServers, members:db.members.map(m=>({id:m.id,name:m.name})), session:session?safeSession(session,true):null,
-        recent:room.sessions.slice(-12).reverse().map(x=>({id:x.id,memberName:db.members.find(m=>m.id===x.memberId)?.name||'Member',mode:x.mode,status:x.status,createdAt:x.createdAt})) });
-      if (!invited) return send(res, 200, { admin:false, invited:false, session:null });
-      return send(res, 200, { admin:false, iceServers, invited:true, session:safeSession(session,false) });
-    }
-
-    if (route === '/api/confession/admin' && req.method === 'POST') {
-      if (!admin) return bad(res, 'GOD ADMIN authentication required', 403);
-      if (b.action === 'summon' || b.action === 'schedule') {
-        if (session && session.status !== 'closed') return bad(res, 'End the current Confession Room session first');
-        const target = db.members.find(m => m.id === b.memberId);
-        if (!target) return bad(res, 'Select a valid member');
-        if (!['text','voice','live'].includes(b.mode)) return bad(res, 'Select a valid session mode');
-        let scheduledAt = Date.now();
-        if (b.action === 'schedule') {
-          scheduledAt = Date.parse(b.scheduledAt);
-          if (!Number.isFinite(scheduledAt) || scheduledAt < Date.now() + 60000 || scheduledAt > Date.now() + 90*86400000) return bad(res, 'Choose a future date and time');
-        }
-        session = { id:crypto.randomUUID(), memberId:target.id, mode:b.mode, status:b.action==='schedule'?'scheduled':'active',
-          scheduledAt, createdAt:Date.now(), messages:[], voiceClips:[], signals:[], signalSeq:0 };
-        room.sessions.push(session); room.sessions = room.sessions.slice(-100); room.activeId = session.id;
-        log('Confession Room '+(b.action==='schedule'?'scheduled':'summoned'), target.name+' / '+b.mode);
-        await save(); return send(res,200,{ok:true,session:safeSession(session,true)});
-      }
-      if (!session) return bad(res, 'No active session');
-      if (b.action === 'close') {
-        for (const v of session.voiceClips || []) await deleteAudio(v.path);
-        for (const m of session.messages || []) if (m.audioPath) await deleteAudio(m.audioPath);
-        session.status='closed'; session.closedAt=Date.now(); session.signals=[];
-        // Session content is deliberately not retained after the room closes.
-        session.messages=[]; session.voiceClips=[];
-        room.activeId=null; await save();
-        log('Confession Room closed', session.memberId);
-        return send(res,200,{ok:true});
-      }
-      if (b.action === 'send') {
-        if (session.status !== 'active') return bad(res,'Session is not active');
-        if (!required(b.text,1200) || !/[\u0900-\u097F]/.test(b.text) || !/^[\u0900-\u097F0-9\s.,!?।॥:;’'“”()\-–—…]+$/.test(b.text)) return bad(res,'Message must be written in Hindi using Devanagari script only');
-        const apiKey = process.env.ELEVENLABS_API_KEY;
-        if (!apiKey) return bad(res,'ElevenLabs is not configured. Add ELEVENLABS_API_KEY in Render environment settings.',503);
-        const voiceId = 'P1bg08DkjqiVEzOn76yG';
-        const tts = await fetch('https://api.elevenlabs.io/v1/text-to-speech/'+voiceId+'?output_format=mp3_44100_128', {
-          method:'POST', headers:{'xi-api-key':apiKey,'Content-Type':'application/json','Accept':'audio/mpeg'},
-          body:JSON.stringify({text:b.text.trim(),model_id:'eleven_multilingual_v2',voice_settings:{stability:0.58,similarity_boost:0.82,style:0.18,use_speaker_boost:true}})
-        });
-        if (!tts.ok) { const detail=await tts.text().catch(()=> ''); return bad(res,'ElevenLabs speech generation failed: HTTP '+tts.status+' '+detail.slice(0,160),502); }
-        const audio=Buffer.from(await tts.arrayBuffer());
-        if (!audio.length || audio.length > 10000000) return bad(res,'Generated voice audio is too large',502);
-        const audioPath=await putAudio(audio,'audio/mpeg','mp3');
-        const msg={id:crypto.randomUUID(),from:'admin',text:b.text.trim(),at:Date.now(),audioPath,audioId:crypto.randomUUID()};
-        session.messages.push(msg); session.messages=session.messages.slice(-100);
-        await save(); return send(res,200,{ok:true,message:{id:msg.id,from:msg.from,text:msg.text,at:msg.at,audioId:msg.audioId}});
-      }
-      return bad(res,'Unknown Confession Room action');
-    }
-
-    if (route === '/api/confession/reply' && req.method === 'POST') {
-      if (!invited || session.status !== 'active') return bad(res,'You are not invited to an active session',403);
-      if (session.mode !== 'text') return bad(res,'Text replies are disabled for this session');
-      if (!required(b.text,1200)) return bad(res,'Enter a reply');
-      session.messages.push({id:crypto.randomUUID(),from:'member',text:b.text.trim(),at:Date.now()});
-      session.messages=session.messages.slice(-100); await save(); return send(res,200,{ok:true});
-    }
-
-    if (route === '/api/confession/voice' && req.method === 'POST') {
-      if (!invited || session.status !== 'active' || session.mode !== 'voice') return bad(res,'Voice-note access is not available',403);
-      if (b.consent !== true || typeof b.audio !== 'string') return bad(res,'Confirm consent and record a voice note');
-      if ((session.voiceClips || []).length >= 10) return bad(res,'Voice-note limit reached for this session');
-      const match=b.audio.match(/^data:(audio\/(?:webm|ogg|mp4|x-m4a|mpeg|wav));base64,([A-Za-z0-9+/=]+)$/);
-      if (!match) return bad(res,'Unsupported voice-note format');
-      const data=Buffer.from(match[2],'base64');
-      if (!data.length || data.length>7000000) return bad(res,'Voice note must be 7 MB or smaller');
-      const ext=({'audio/webm':'webm','audio/ogg':'ogg','audio/mp4':'m4a','audio/x-m4a':'m4a','audio/mpeg':'mp3','audio/wav':'wav'})[match[1]];
-      const path=await putAudio(data,match[1],ext);
-      const clip={id:crypto.randomUUID(),path,mime:match[1],size:data.length,at:Date.now()};
-      session.voiceClips.push(clip); await save(); return send(res,200,{ok:true,id:clip.id});
-    }
-
-    if (route === '/api/confession/audio' && req.method === 'GET') {
-      if (!admin && !invited) return bad(res,'Confession Room access restricted',403);
-      const id=url.searchParams.get('id');
-      let path=null,mime='audio/mpeg',size=null;
-      if (session) {
-        const msg=(session.messages||[]).find(x=>x.audioId===id);
-        const clip=(session.voiceClips||[]).find(x=>x.id===id);
-        if (msg) path=msg.audioPath;
-        if (clip) {path=clip.path;mime=clip.mime;size=clip.size;}
-      }
-      if (!path) return bad(res,'Audio not found',404);
-      const r=await fetch(SUPABASE_URL+'/storage/v1/object/'+bucket+'/'+path,{headers:storageHeaders});
-      if(!r.ok)return bad(res,'Audio could not be loaded',502);
-      const bytes=Buffer.from(await r.arrayBuffer());
-      res.writeHead(200,{'Content-Type':mime,'Content-Length':size||bytes.length,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Disposition':'inline'});
-      return res.end(bytes);
-    }
-
-    if (route === '/api/confession/signal' && req.method === 'GET') {
-      if (!admin && !invited) return bad(res,'Confession Room access restricted',403);
-      if (!session || session.status!=='active' || session.mode!=='live') return bad(res,'Live session unavailable',403);
-      const self=admin?'admin':member.id, after=Number(url.searchParams.get('after')||0);
-      return send(res,200,{signals:(session.signals||[]).filter(x=>x.to===self&&x.seq>after)});
-    }
-    if (route === '/api/confession/signal' && req.method === 'POST') {
-      if (!admin && !invited) return bad(res,'Confession Room access restricted',403);
-      if (!session || session.status!=='active' || session.mode!=='live') return bad(res,'Live session unavailable',403);
-      const from=admin?'admin':member.id, to=admin?session.memberId:'admin';
-      if (!['offer','answer','candidate'].includes(b.type) || typeof b.data!=='object' || JSON.stringify(b.data).length>12000) return bad(res,'Invalid live-audio signal');
-      session.signals ||= []; session.signalSeq=(session.signalSeq||0)+1;
-      session.signals.push({seq:session.signalSeq,from,to,type:b.type,data:b.data,at:Date.now()});
-      if(session.signals.length>300)session.signals=session.signals.slice(-200);
-      return send(res,200,{ok:true,seq:session.signalSeq});
-    }
-    return bad(res,'Not found',404);
-  }
 
   // VOICE CENTER: isolated metadata + private Supabase Storage bucket.
   if (route.startsWith('/api/voice/')) {
@@ -1782,9 +1617,6 @@ const types = {
 const allowedFiles = new Set([
   'index.html',
   'voice-center.html',
-  'confession-room.html',
-  'confession.js',
-  'confession.css',
   'app.js',
   'style.css',
 
