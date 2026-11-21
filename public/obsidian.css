@@ -178,3 +178,17 @@ html body.v5-body #v5Home #spotlightCards > .ffgc-hall-empty {
     flex-basis:245px!important;width:245px!important;
   }
 }
+
+
+/* FFGC2K26 FIX PACK — Spotlight themes, expandable copy, daily check-in */
+html body.v5-body #spotlightCards .spotlightCard.gold {background:linear-gradient(140deg,#493411,#171006)!important;border-color:#e5b94f!important;box-shadow:0 0 20px #e5b94f30!important;color:#fff3d0!important}
+html body.v5-body #spotlightCards .spotlightCard.purple {background:linear-gradient(140deg,#35145a,#100819)!important;border-color:#b66cff!important;box-shadow:0 0 20px #a54bff30!important;color:#f5eaff!important}
+html body.v5-body #spotlightCards .spotlightCard.red {background:linear-gradient(140deg,#571b25,#17080c)!important;border-color:#ff626f!important;box-shadow:0 0 20px #ff465530!important;color:#ffe9eb!important}
+html body.v5-body #spotlightCards .spotlightCard.blue {background:linear-gradient(140deg,#123b62,#07111e)!important;border-color:#54b9ff!important;box-shadow:0 0 20px #279dff30!important;color:#e8f6ff!important}
+html body.v5-body #spotlightCards .spotlightDescription{display:-webkit-box!important;-webkit-box-orient:vertical!important;-webkit-line-clamp:2!important;line-clamp:2!important;overflow:hidden!important;white-space:pre-wrap!important}
+html body.v5-body #spotlightCards .spotlightCard.spotlight-expanded{height:auto!important;min-height:165px!important;overflow:visible!important}
+html body.v5-body #spotlightCards .spotlightCard.spotlight-expanded .spotlightDescription{display:block!important;-webkit-line-clamp:unset!important;line-clamp:unset!important;overflow:visible!important}
+html body.v5-body #spotlightCards .spotlightMore{display:inline-block!important;margin-top:2px!important;padding:4px 9px!important;font-size:10px!important;min-height:0!important;border:1px solid currentColor!important;border-radius:7px!important;background:#ffffff12!important;color:inherit!important}
+.daily-checkin-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;margin:22px 0;padding:18px;border:1px solid #9d65c5;border-radius:16px;background:linear-gradient(135deg,#241132,#100918);color:#f7eaff}
+.daily-checkin-card>div{min-width:0}.daily-checkin-card small{color:#d99bff;letter-spacing:1px;font-size:10px}.daily-checkin-card h3{margin:7px 0}.daily-checkin-card p{margin:5px 0;color:#d2c1df;font-size:12px}.daily-checkin-warning{display:block;color:#ffb7c0;font-size:11px;line-height:1.5;margin-top:8px}.daily-checkin-card button{padding:12px 15px;border:1px solid #c47bf0;border-radius:10px;background:#572477;color:white;font-weight:800}.daily-checkin-card button:disabled{opacity:.7;cursor:default}.daily-checkin-date{grid-column:1/-1;color:#bda8cc!important}
+@media(max-width:520px){.daily-checkin-card{grid-template-columns:1fr}.daily-checkin-card button{width:100%}}
