@@ -57,7 +57,7 @@ const initial = {
   announcements: [],
   polls: [],
   history: [],
-  teams: [], spotlight: [], supportMessages: []
+  teams: [], spotlight: [], supportMessages: [], dailyCheckIns: {startDate:'', records:[], deductions:[]}
 };
 
 let db = initial;
@@ -111,7 +111,7 @@ async function load() {
     await save();
   } else {
     db = value;
-    db.chamber ||= {sessions:[],activeId:null}; db.teams ||= []; db.spotlight ||= []; db.supportMessages ||= []; db.auctionHouse ||= {cycleStart:Date.now(), auctions:[], inventory:[], enabled:true};
+    db.chamber ||= {sessions:[],activeId:null}; db.teams ||= []; db.spotlight ||= []; db.supportMessages ||= []; db.auctionHouse ||= {cycleStart:Date.now(), auctions:[], inventory:[], enabled:true}; db.dailyCheckIns ||= {startDate:'', records:[], deductions:[]};
     for (const m of db.members) m.profile ||= {};
   }
 }
@@ -287,6 +287,35 @@ function nominationSummary(p) {
     manual: Object.prototype.hasOwnProperty.call(manual, id),
     reason: String(manual[id] || '')
   })).sort((a, b) => b.votes - a.votes) };
+}
+
+function indiaDateString(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+}
+function ensureDailyCheckIns() {
+  db.dailyCheckIns ||= { startDate: '', records: [], deductions: [] };
+  db.dailyCheckIns.records ||= [];
+  db.dailyCheckIns.deductions ||= [];
+  if (!db.dailyCheckIns.startDate) db.dailyCheckIns.startDate = indiaDateString();
+  return db.dailyCheckIns;
+}
+function dailyCheckInPending() {
+  const data = ensureDailyCheckIns();
+  const today = indiaDateString();
+  const pending = [];
+  const start = new Date(data.startDate + 'T00:00:00+05:30');
+  const end = new Date(today + 'T00:00:00+05:30');
+  for (let cursor = new Date(start); cursor < end; cursor.setDate(cursor.getDate() + 1)) {
+    const date = indiaDateString(cursor);
+    for (const member of db.members) {
+      const memberStart = member.checkInStartDate || data.startDate;
+      if (date < memberStart) continue;
+      const checked = data.records.some(r => r.memberId === member.id && r.date === date);
+      const processed = data.deductions.some(r => r.memberId === member.id && r.date === date);
+      if (!checked && !processed) pending.push({ memberId: member.id, memberName: member.name, date, points: 50 });
+    }
+  }
+  return pending;
 }
 
 function publicData(admin) {
@@ -913,6 +942,48 @@ async function api(req, res, url) {
     const m=memberSession(req);
     return m ? send(res,200,{profile:safeProfile(m,true)}) : bad(res,'Member login required',401);
   }
+  // DAILY CHECK-IN — only an authenticated private-ID member can check in.
+  if (route === '/api/checkin/member' && req.method === 'GET') {
+    const m = memberSession(req);
+    if (!m) return bad(res, 'Login with your private member ID first', 401);
+    const data = ensureDailyCheckIns();
+    const today = indiaDateString();
+    const checkedIn = data.records.some(r => r.memberId === m.id && r.date === today);
+    await save();
+    return send(res, 200, { date: today, checkedIn, notice: 'If you miss a daily check-in, the admin may manually deduct 50 points from the following day.' });
+  }
+  if (route === '/api/checkin/member' && req.method === 'POST') {
+    const m = memberSession(req);
+    if (!m) return bad(res, 'Login with your private member ID first', 401);
+    const data = ensureDailyCheckIns();
+    const today = indiaDateString();
+    if (data.records.some(r => r.memberId === m.id && r.date === today)) return bad(res, 'You have already checked in today', 409);
+    data.records.push({ memberId: m.id, date: today, at: new Date().toISOString() });
+    log('Daily check-in', m.name + ' · ' + today);
+    await save();
+    return send(res, 200, { ok: true, date: today, checkedIn: true });
+  }
+  if (route === '/api/checkin/admin' && req.method === 'GET') {
+    if (!admin) return bad(res, 'Admin authentication required', 401);
+    const data = ensureDailyCheckIns();
+    await save();
+    return send(res, 200, { pending: dailyCheckInPending(), deductions: data.deductions.slice(-100).reverse(), startDate: data.startDate });
+  }
+  if (route === '/api/checkin/admin' && req.method === 'POST') {
+    if (!admin) return bad(res, 'Admin authentication required', 401);
+    const data = ensureDailyCheckIns();
+    const member = db.members.find(m => m.id === b.memberId);
+    if (!member || !/^\d{4}-\d{2}-\d{2}$/.test(String(b.date || ''))) return bad(res, 'Invalid member or missed date');
+    const pending = dailyCheckInPending().some(x => x.memberId === b.memberId && x.date === b.date);
+    if (!pending) return bad(res, 'This missed check-in is already completed or is not pending', 409);
+    member.points = Number(member.points || 0) - 50;
+    const record = { memberId: member.id, memberName: member.name, date: b.date, points: 50, at: new Date().toISOString(), by: ADMIN_USER };
+    data.deductions.push(record);
+    log('Daily check-in penalty', member.name + ' · -50 points · missed ' + b.date);
+    await save();
+    return send(res, 200, { ok: true, deduction: record, points: member.points });
+  }
+
   if (route === '/api/member/profile' && req.method === 'POST') {
     const m=memberSession(req);
     if (!m) return bad(res,'Member login required',401);
@@ -1137,7 +1208,8 @@ async function api(req, res, url) {
       name: b.name.trim(),
       points,
       codeHash: null,
-      excluded: false
+      excluded: false,
+      checkInStartDate: indiaDateString()
     };
 
     db.members.push(m);
@@ -1222,6 +1294,17 @@ async function api(req, res, url) {
     await save();
 
     return send(res, 200, { code });
+  }
+
+  // TASK DELETE — admin-only, separate action so accidental form submits cannot remove tasks.
+  if (route === '/api/task/delete' && req.method === 'POST') {
+    if (!admin) return bad(res, 'Admin authentication required', 401);
+    const task = db.tasks.find(x => x.id === b.id);
+    if (!task) return bad(res, 'Task not found', 404);
+    db.tasks = db.tasks.filter(x => x.id !== b.id);
+    log('Task deleted', task.title);
+    await save();
+    return send(res, 200, { ok: true });
   }
 
   // TASK MANAGER
