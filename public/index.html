@@ -377,6 +377,8 @@ body.economic-empire-open {
 
   <div id="dashboard" class="hidden">
 
+    <div id="adminMainView">
+
     <div class="adminCard" style="margin-bottom:18px">
       <h3>💰 Economic Empire</h3>
 
@@ -391,17 +393,10 @@ body.economic-empire-open {
       </a>
     </div>
 
-    <div class="adminCard" id="confessionQuickAccess" style="margin-bottom:18px">
+    <div class="adminCard" id="confessionRoomAdminShortcut" style="margin-bottom:18px;border-color:#7658b8;background:linear-gradient(135deg,#211a3b,#121629)">
       <h3>👑 Confession Room</h3>
-      <p>Invite members, manage the private session, control permissions and close the room.</p>
-      <button
-        type="button"
-        id="openConfessionControls"
-        class="primary"
-        style="display:inline-block;padding:12px"
-      >
-        Open Confession Room Controls ↓
-      </button>
+      <p class="muted">Dedicated private-session management. Invite members, manage access and messages, and control the active room.</p>
+      <button type="button" class="primary" id="openConfessionAdminPage">Open Confession Room Control ↗</button>
     </div>
 
     <div class="adminGrid">
@@ -666,9 +661,6 @@ body.economic-empire-open {
       id="chamberAdmin"
     ></div>
 
-    <h3 class="adminSub">👑 Confession Room Control</h3>
-    <div class="adminCard" id="confessionAdmin"></div>
-
     <h3 class="adminSub">
       🔨 Auction House Control
     </h3>
@@ -817,6 +809,20 @@ body.economic-empire-open {
     <h3 class="adminSub">Activity History</h3>
     <div id="history" class="adminList"></div>
 
+    </div><!-- /adminMainView -->
+
+    <div id="confessionAdminPage" class="hidden">
+      <div class="sectionHeading">
+        <div>
+          <small>PRIVATE / GOD ADMIN ONLY</small>
+          <h2>👑 Confession Room Control</h2>
+        </div>
+        <button type="button" class="ghost" id="backFromConfessionAdmin">← Back to Control Center</button>
+      </div>
+      <p class="muted">Dedicated management page for the private Confession Room. Only God Admin can manage this session.</p>
+      <div class="adminCard" id="confessionAdmin"></div>
+    </div>
+
   </div>
 </section>
 
@@ -855,16 +861,6 @@ body.economic-empire-open {
   ></iframe>
 </div>
 
-
-<style>
-  #confessionAdmin.confession-control-highlight {
-    outline: 2px solid #d7b45e;
-    outline-offset: 5px;
-    border-radius: 14px;
-    transition: outline-color .25s ease;
-  }
-</style>
-
 <!-- MAIN APPLICATION SCRIPTS -->
 
 <script src="/app.js?v=obsidian4-hall"></script>
@@ -880,6 +876,27 @@ body.economic-empire-open {
 <script>
 (function () {
   const adminPanel = document.getElementById('admin');
+  const adminMainView = document.getElementById('adminMainView');
+  const confessionAdminPage = document.getElementById('confessionAdminPage');
+
+  function openConfessionAdminPage() {
+    if (!adminMainView || !confessionAdminPage) return;
+    adminMainView.classList.add('hidden');
+    confessionAdminPage.classList.remove('hidden');
+    confessionAdminPage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function closeConfessionAdminPage() {
+    if (!adminMainView || !confessionAdminPage) return;
+    confessionAdminPage.classList.add('hidden');
+    adminMainView.classList.remove('hidden');
+    adminMainView.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  document.getElementById('openConfessionAdminPage')
+    ?.addEventListener('click', openConfessionAdminPage);
+  document.getElementById('backFromConfessionAdmin')
+    ?.addEventListener('click', closeConfessionAdminPage);
 
   function openAdmin() {
     if (!adminPanel) return;
@@ -900,26 +917,6 @@ body.economic-empire-open {
       openAdmin();
     }
     if (event.target.closest('#ffgcProfileEconomy')) openEconomy();
-  });
-
-  const confessionQuickButton =
-    document.getElementById('openConfessionControls');
-
-  confessionQuickButton?.addEventListener('click', function () {
-    const confessionControl =
-      document.getElementById('confessionAdmin');
-
-    if (!confessionControl) return;
-
-    confessionControl.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center'
-    });
-
-    confessionControl.classList.add('confession-control-highlight');
-    window.setTimeout(() => {
-      confessionControl.classList.remove('confession-control-highlight');
-    }, 1400);
   });
 
   if (location.hash === '#admin') {
