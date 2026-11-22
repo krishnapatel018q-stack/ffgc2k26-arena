@@ -1,6 +1,22 @@
 (()=>{
 const groups=[
-['overview','⌂','Overview',[]],['economy','◈','Economic Empire',[0]],['settings','⚙','Website Controls',[1]],['announcements','◈','Announcements',[2,3]],['support','✉','Support Box',[4,5]],['profiles','◉','Profiles',[6,7]],['teams','⚔','Teams',[8,9,10]],['spotlight','✦','Hall of Spotlight',[11,12,13]],['chamber','⚖','Decision Chamber',[14,15]],['auction','◆','Auction House',[16,17]],['leaderboard','♛','Leaderboard',[18,19]],['elimination','●','Elimination',[20,21]],['polls','☷','Polls & Nominations',[22,23,24,25,26]],['checkin','📅','Daily Check-In',[27,28]],['tasks','▣','Tasks',[29,30]],['history','◷','Activity History',[31,32]]];
+['overview','⌂','Overview',[]],
+['confession','💬','Confession Room',[0,1]],
+['economy','◈','Economic Empire',[2]],
+['settings','⚙','Website Controls',[3]],
+['announcements','◈','Announcements',[4,5]],
+['support','✉','Support Box',[6,7]],
+['profiles','◉','Profiles',[8,9]],
+['teams','⚔','Teams',[10,11,12]],
+['spotlight','✦','Hall of Spotlight',[13,14,15]],
+['chamber','⚖','Decision Chamber',[16,17]],
+['auction','◆','Auction House',[18,19]],
+['leaderboard','♛','Leaderboard',[20,21]],
+['elimination','●','Elimination',[22,23]],
+['polls','☷','Polls & Nominations',[24,25,26,27,28]],
+['checkin','📅','Daily Check-In',[29,30]],
+['tasks','▣','Tasks',[31,32]],
+['history','◷','Activity History',[33,34]]];
 let current='overview';
 function init(){const dash=document.getElementById('dashboard');if(!dash||dash.dataset.royale)return;dash.dataset.royale='1';const children=[...dash.children];const shell=document.createElement('div');shell.className='royale-shell';const side=document.createElement('aside');side.className='royale-side';const workspace=document.createElement('div');workspace.className='royale-workspace';const header=document.createElement('div');header.className='royale-top';header.innerHTML='<button type="button" class="royale-menu" aria-label="Open admin menu">☰</button><div><small>FFGC2K26 / GOD ADMIN</small><h2 id="royaleTitle">Command Center</h2></div><span class="royale-live">● CONTROL ACTIVE</span>';const home=document.createElement('div');home.className='royale-home';home.innerHTML='<div class="royale-welcome"><small>✦ OBSIDIAN ROYALE 4.0</small><h2>Welcome to your Command Center</h2><p>Choose a dedicated management area. All your original controls remain available.</p></div><div class="royale-tiles"></div>';workspace.append(header,home);side.innerHTML='<div class="royale-brand">✦ FFGC<span>2K26</span><small>GOD ADMIN CONSOLE</small></div><div class="royale-links"></div>';shell.append(side,workspace);dash.append(shell);
 for(const [key,icon,title,indices] of groups){const section=document.createElement('div');section.className='royale-section';section.dataset.area=key;section.hidden=true;if(key!=='overview'){const heading=document.createElement('div');heading.className='royale-section-heading';heading.innerHTML='<small>GOD ADMIN / MANAGEMENT</small><h2>'+icon+' '+title+'</h2>';section.append(heading);for(const i of indices)if(children[i])section.append(children[i]);workspace.append(section)}const button=document.createElement('button');button.type='button';button.className='royale-link';button.dataset.go=key;button.textContent=icon+'  '+title;side.querySelector('.royale-links').append(button);if(key!=='overview'){const tile=document.createElement('button');tile.type='button';tile.className='royale-tile';tile.dataset.go=key;tile.innerHTML='<span>'+icon+'</span><strong>'+title+'</strong><small>Open controls ↗</small>';home.querySelector('.royale-tiles').append(tile)}}

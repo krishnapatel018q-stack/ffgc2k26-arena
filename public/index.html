@@ -950,8 +950,8 @@ body.economic-empire-open {
   .confession-launch-card{display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid rgba(164,116,255,.32);background:linear-gradient(125deg,rgba(85,47,145,.22),rgba(18,22,42,.96));}
   .confession-launch-copy h3{margin:0 0 7px;font-size:1.12rem}
   .confession-launch-copy p,.confession-dedicated-head p{margin:0;color:var(--muted,#aeb5c8);font-size:.9rem}
-  #dashboard.confession-admin-mode> :not(#confessionAdminDedicated){display:none!important}
-  #dashboard.confession-admin-mode>#confessionAdminDedicated{display:block!important}
+  .royale-section.confession-admin-mode> :not(#confessionAdminDedicated){display:none!important}
+  .royale-section.confession-admin-mode>#confessionAdminDedicated{display:block!important}
   .confession-dedicated-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
   .confession-dedicated-head h2{margin:4px 0 8px;font-size:1.35rem}
   .confession-kicker{font-size:.7rem!important;letter-spacing:.16em;color:#c5a2ff!important;font-weight:800;margin:0!important}
@@ -963,31 +963,18 @@ body.economic-empire-open {
   const open=document.getElementById('openConfessionAdmin');
   const back=document.getElementById('backFromConfessionAdmin');
   if(!dashboard||!open||!back)return;
-  const page=document.getElementById('confessionAdminDedicated');
-  if(!page)return;
-
-  function showConfessionAdmin(){
-    // The .hidden rule uses !important, so explicitly remove it before
-    // switching the dashboard into its dedicated single-section view.
-    page.classList.remove('hidden');
-    page.setAttribute('aria-hidden','false');
-    dashboard.classList.add('confession-admin-mode');
-    requestAnimationFrame(()=>page.scrollIntoView({behavior:'smooth',block:'start'}));
-  }
-
-  function showMainAdmin(){
-    dashboard.classList.remove('confession-admin-mode');
-    page.classList.add('hidden');
-    page.setAttribute('aria-hidden','true');
-    dashboard.scrollIntoView({behavior:'smooth',block:'start'});
-  }
-
-  open.addEventListener('click',showConfessionAdmin);
-  back.addEventListener('click',showMainAdmin);
-  document.addEventListener('keydown',event=>{
-    if(event.key==='Escape'&&dashboard.classList.contains('confession-admin-mode')){
-      showMainAdmin();
-    }
+  open.addEventListener('click',()=>{
+    const area=open.closest('.royale-section') || dashboard;
+    area.classList.add('confession-admin-mode');
+    const dedicated=document.getElementById('confessionAdminDedicated');
+    dedicated?.classList.remove('hidden');
+    dedicated?.scrollIntoView({behavior:'smooth',block:'start'});
+  });
+  back.addEventListener('click',()=>{
+    const area=back.closest('.royale-section') || dashboard;
+    area.classList.remove('confession-admin-mode');
+    document.getElementById('confessionAdminDedicated')?.classList.add('hidden');
+    area.scrollIntoView({behavior:'smooth',block:'start'});
   });
 })();
 </script>
