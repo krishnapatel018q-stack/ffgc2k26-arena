@@ -1,29 +1,111 @@
 (()=>{
-const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let state=null,busy=false;
-async function api(path,body){const r=await fetch('/api/confession/'+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:body?JSON.stringify(body):undefined});let d={};try{d=await r.json()}catch{}if(!r.ok)throw Error(d.error||'Request failed');return d}
-function say(e){alert(e.message||String(e))}
-function chatMarkup(room){return `<div class="cf-chat" id="cfChat">${(room.messages||[]).map(m=>`<article class="cf-msg ${m.name==='FFGC'?'cf-official':''}"><b>${esc(m.name)}</b>${m.text?`<p>${esc(m.text)}</p>`:''}${m.media?`<img loading="lazy" src="/api/confession/media?id=${encodeURIComponent(m.id)}" alt="Shared image">`:''}<small>${new Date(m.at).toLocaleTimeString()}</small></article>`).join('')||'<p class="muted">No messages yet. Start the conversation.</p>'}</div>`}
-function render(){if(!state)return;const active=document.activeElement;if(active&&['INPUT','TEXTAREA','SELECT'].includes(active.tagName)&&active.closest('#confessionRoom'))return;const room=state.room,publicBox=$('confessionPublic'),privateBox=$('confessionPrivate'),adminBox=$('confessionAdmin');if(!room){publicBox.innerHTML='<div class="cf-empty">The Confession Room is currently closed.</div>';privateBox.innerHTML='';}
-else{publicBox.innerHTML=`<div class="cf-banner"><span>● LIVE SESSION</span><h3>FFGC CONFESSION ROOM</h3><p>${room.participants.map(p=>esc(p.name)).join(' · ')}</p></div>`;
-if(room.removed){privateBox.innerHTML='<div class="cf-empty">Your access to this session has been removed by FFGC.</div>';}
-else if(!room.canEnter){privateBox.innerHTML='<div class="cf-empty">This room is invite-only. Your account is not selected for this session.</div>';}
-else if(!room.verified){privateBox.innerHTML=`<form id="cfVerify" class="cf-card"><h3>🔐 Verify Your Entry</h3><p>Enter your Private ID to enter this invited session.</p><input name="privateId" type="password" autocomplete="off" placeholder="Your Private ID" required><button>Verify & Enter</button></form>`;}
-else{const me=room.participants.find(p=>p.isMe);privateBox.innerHTML=`<div class="cf-card"><div class="cf-head"><b>Private Live Conversation</b><span>${me?.muted?'Muted by FFGC':'Connected'}</span></div>${chatMarkup(room)}${me?.muted?'<p class="cf-muted">You are muted. You can still read messages.</p>':`<form id="cfSend" class="cf-send"><input name="text" maxlength="1500" placeholder="Write a message..." required><button>Send</button></form>`}${!me?.muted&&me?.mediaAllowed?`<form id="cfMedia" class="cf-send"><input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif" required><button>Send Photo</button></form>`:me?.mediaAllowed?'':'<p class="cf-muted">Photo sharing is currently disabled by FFGC.</p>'}</div>`;
-}}
-if(state.admin&&adminBox){const members=state.members||[];let html='';if(!room){html=`<form id="cfCreate" class="cf-card"><h3>Create a new private session</h3><p>Select all invited members. They must each log in and verify their Private ID.</p><div class="cf-member-pick">${members.map(m=>`<label><input type="checkbox" name="memberId" value="${esc(m.id)}"> ${esc(m.name)}</label>`).join('')}</div><button>Create Confession Room</button></form>`;}else{html=`<div class="cf-card"><div class="cf-head"><b>Active Session Controls</b><span class="cf-live">LIVE</span></div><div class="cf-admin-list">${room.participants.map(p=>`<div class="cf-admin-person"><b>${esc(p.name)}</b><small>${p.verified?'Verified':'Not entered'}${p.removed?' · Removed':''}</small><div class="cf-actions"><button data-cf="mute" data-id="${esc(p.id)}" data-value="${!p.muted}">${p.muted?'Unmute':'Mute'}</button><button data-cf="media" data-id="${esc(p.id)}" data-value="${!p.mediaAllowed}">${p.mediaAllowed?'Disable Media':'Allow Media'}</button><button class="cf-danger" data-cf="remove" data-id="${esc(p.id)}">Remove</button></div></div>`).join('')}</div><form id="cfAdminSend" class="cf-send"><input name="text" maxlength="1500" placeholder="Send message as FFGC" required><button>Send as FFGC</button></form><form id="cfAdminMedia" class="cf-send"><input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif" required><button>Send Photo as FFGC</button></form><div class="cf-admin-chat">${chatMarkup(room)}</div><button class="cf-danger" id="cfClose">Close Room & Delete Chat</button></div>`;}
-adminBox.innerHTML=html;
-const create=$('cfCreate');if(create)create.onsubmit=async e=>{e.preventDefault();const ids=[...create.querySelectorAll('input:checked')].map(x=>x.value);try{await api('admin',{action:'create',memberIds:ids});await refresh()}catch(err){say(err)}};
-const af=$('cfAdminSend');if(af)af.onsubmit=async e=>{e.preventDefault();try{await api('admin-message',{text:af.elements.text.value});af.reset();await refresh()}catch(err){say(err)}};
-const adminMedia=$('cfAdminMedia');if(adminMedia)adminMedia.onsubmit=async e=>{e.preventDefault();const f=adminMedia.elements.file.files[0];if(!f)return;if(f.size>7*1024*1024)return alert('Maximum image size is 7 MB');const reader=new FileReader();reader.onload=async()=>{try{await api('media',{data:reader.result,name:f.name});await refresh()}catch(err){say(err)}};reader.readAsDataURL(f)};
-const close=$('cfClose');if(close)close.onclick=async()=>{if(confirm('Close this session and permanently delete its chat and uploaded images?'))try{await api('admin',{action:'close'});await refresh()}catch(e){say(e)}};
-adminBox.querySelectorAll('[data-cf]').forEach(btn=>btn.onclick=async()=>{try{await api('admin',{action:btn.dataset.cf,memberId:btn.dataset.id,value:btn.dataset.value==='true'});await refresh()}catch(e){say(e)}});
+'use strict';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let state=null,busy=false,lastError='';
+async function api(path,body){
+  const r=await fetch('/api/confession/'+path,{
+    method:body?'POST':'GET',
+    headers:{'Content-Type':'application/json'},
+    credentials:'same-origin',
+    cache:'no-store',
+    body:body?JSON.stringify(body):undefined
+  });
+  let d={};try{d=await r.json()}catch{}
+  if(!r.ok)throw Error(d.error||('Request failed ('+r.status+')'));
+  return d;
 }
-const verify=$('cfVerify');if(verify)verify.onsubmit=async e=>{e.preventDefault();try{await api('enter',{privateId:verify.elements.privateId.value});await refresh()}catch(err){say(err)}};
-const send=$('cfSend');if(send)send.onsubmit=async e=>{e.preventDefault();try{await api('message',{text:send.elements.text.value});send.reset();await refresh()}catch(err){say(err)}};
-const media=$('cfMedia');if(media)media.onsubmit=async e=>{e.preventDefault();const f=media.elements.file.files[0];if(!f)return;if(f.size>7*1024*1024)return alert('Maximum image size is 7 MB');const reader=new FileReader();reader.onload=async()=>{try{await api('media',{data:reader.result,name:f.name});await refresh()}catch(err){say(err)}};reader.readAsDataURL(f)};
-const chat=$('cfChat');if(chat)chat.scrollTop=chat.scrollHeight;
+function say(e){alert(e.message||String(e));}
+function chatMarkup(room){
+  return `<div class="cf-chat" id="cfChat">${(room.messages||[]).map(m=>`<article class="cf-msg ${m.name==='FFGC'?'cf-official':''}"><b>${esc(m.name)}</b>${m.text?`<p>${esc(m.text)}</p>`:''}${m.media?`<img loading="lazy" src="/api/confession/media?id=${encodeURIComponent(m.id)}" alt="Shared image">`:''}<small>${new Date(m.at).toLocaleTimeString()}</small></article>`).join('')||'<p class="muted">No messages yet. Start the conversation.</p>'}</div>`;
 }
-async function refresh(){if(busy)return;busy=true;try{state=await api('state');render()}catch(e){console.warn('Confession Room:',e.message)}finally{busy=false}}
-refresh();setInterval(refresh,2500);
+function renderAdmin(){
+  const box=$('confessionAdmin');
+  if(!box)return;
+  if(!state){
+    box.innerHTML=`<div class="cf-card"><b>Confession Room controls</b><p class="cf-muted">${esc(lastError||'Connecting to Confession Room service…')}</p><button type="button" id="cfRetry">Retry</button></div>`;
+    $('cfRetry')?.addEventListener('click',refresh);
+    return;
+  }
+  if(!state.admin){
+    box.innerHTML='<div class="cf-card"><b>God Admin access required</b><p class="cf-muted">Is panel ko use karne ke liye God Admin account se login karein, phir refresh karein.</p><button type="button" id="cfRetry">Refresh Status</button></div>';
+    $('cfRetry')?.addEventListener('click',refresh);
+    return;
+  }
+  const room=state.room;
+  const members=state.members||[];
+  let html='';
+  if(!room){
+    html=`<div class="cf-card cf-create-card"><div class="cf-head"><b>Create Confession Room</b><span>GOD ADMIN</span></div><p>Select the members invited to this private session. They must log in and verify their own Private ID.</p><div class="cf-member-pick">${members.map(m=>`<label><input type="checkbox" name="memberId" value="${esc(m.id)}"> ${esc(m.name)}</label>`).join('')||'<p class="cf-muted">No members are available.</p>'}</div><form id="cfCreate"><button type="submit">＋ Create Confession Room</button></form></div>`;
+  }else{
+    html=`<div class="cf-card"><div class="cf-head"><b>Active Session Controls</b><span class="cf-live">LIVE</span></div><div class="cf-admin-list">${room.participants.map(p=>`<div class="cf-admin-person"><b>${esc(p.name)}</b><small>${p.verified?'Verified':'Not entered'}${p.removed?' · Removed':''}</small><div class="cf-actions"><button type="button" data-cf="mute" data-id="${esc(p.id)}" data-value="${!p.muted}" ${p.removed?'disabled':''}>${p.muted?'Unmute':'Mute'}</button><button type="button" data-cf="media" data-id="${esc(p.id)}" data-value="${!p.mediaAllowed}" ${p.removed?'disabled':''}>${p.mediaAllowed?'Disable Media':'Allow Media'}</button><button type="button" class="cf-danger" data-cf="remove" data-id="${esc(p.id)}" ${p.removed?'disabled':''}>Remove</button></div></div>`).join('')}</div><form id="cfAdminSend" class="cf-send"><input name="text" maxlength="1500" placeholder="Send message as FFGC" required><button>Send as FFGC</button></form><form id="cfAdminMedia" class="cf-send"><input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif" required><button>Send Photo as FFGC</button></form><div class="cf-admin-chat">${chatMarkup(room)}</div><button type="button" class="cf-danger" id="cfClose">Close Room &amp; Delete Chat</button></div>`;
+  }
+  box.innerHTML=html;
+  const create=$('cfCreate');
+  if(create)create.onsubmit=async e=>{
+    e.preventDefault();
+    const ids=[...box.querySelectorAll('.cf-member-pick input[name="memberId"]:checked')].map(x=>x.value);
+    if(!ids.length)return alert('At least one member select karo.');
+    try{await api('admin',{action:'create',memberIds:ids});await refresh();}
+    catch(err){say(err);}
+  };
+  const af=$('cfAdminSend');
+  if(af)af.onsubmit=async e=>{e.preventDefault();try{await api('admin-message',{text:af.elements.text.value});af.reset();await refresh();}catch(err){say(err);}};
+  const adminMedia=$('cfAdminMedia');
+  if(adminMedia)adminMedia.onsubmit=async e=>{
+    e.preventDefault();const f=adminMedia.elements.file.files[0];if(!f)return;
+    if(f.size>7*1024*1024)return alert('Maximum image size is 7 MB');
+    const reader=new FileReader();reader.onload=async()=>{try{await api('media',{data:reader.result,name:f.name});await refresh();}catch(err){say(err);}};
+    reader.readAsDataURL(f);
+  };
+  const close=$('cfClose');
+  if(close)close.onclick=async()=>{if(confirm('Close this session and permanently delete its chat and uploaded images?'))try{await api('admin',{action:'close'});await refresh();}catch(e){say(e);}};
+  box.querySelectorAll('[data-cf]').forEach(btn=>btn.onclick=async()=>{
+    try{await api('admin',{action:btn.dataset.cf,memberId:btn.dataset.id,value:btn.dataset.value==='true'});await refresh();}
+    catch(e){say(e);}
+  });
+}
+function renderMember(){
+  const publicBox=$('confessionPublic'),privateBox=$('confessionPrivate');
+  if(!publicBox||!privateBox||!state)return;
+  const room=state.room;
+  if(!room){
+    publicBox.innerHTML='<div class="cf-empty">The Confession Room is currently closed.</div>';
+    privateBox.innerHTML='';
+    return;
+  }
+  publicBox.innerHTML=`<div class="cf-banner"><span>● LIVE SESSION</span><h3>FFGC CONFESSION ROOM</h3><p>${room.participants.map(p=>esc(p.name)).join(' · ')}</p></div>`;
+  const active=document.activeElement;
+  const preserveInput=active&&['INPUT','TEXTAREA','SELECT'].includes(active.tagName)&&active.closest('#confessionRoom');
+  if(preserveInput)return;
+  if(room.removed){privateBox.innerHTML='<div class="cf-empty">Your access to this session has been removed by FFGC.</div>';}
+  else if(!room.canEnter){privateBox.innerHTML='<div class="cf-empty">This room is invite-only. Your account is not selected for this session.</div>';}
+  else if(!room.verified){
+    privateBox.innerHTML=`<form id="cfVerify" class="cf-card"><h3>🔐 Verify Your Entry</h3><p>Enter your Private ID to enter this invited session.</p><input name="privateId" type="password" autocomplete="off" placeholder="Your Private ID" required><button>Verify &amp; Enter</button></form>`;
+  }else{
+    const me=room.participants.find(p=>p.isMe);
+    privateBox.innerHTML=`<div class="cf-card"><div class="cf-head"><b>Private Live Conversation</b><span>${me?.muted?'Muted by FFGC':'Connected'}</span></div>${chatMarkup(room)}${me?.muted?'<p class="cf-muted">You are muted. You can still read messages.</p>':`<form id="cfSend" class="cf-send"><input name="text" maxlength="1500" placeholder="Write a message..." required><button>Send</button></form>`}${!me?.muted&&me?.mediaAllowed?`<form id="cfMedia" class="cf-send"><input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif" required><button>Send Photo</button></form>`:me?.mediaAllowed?'':'<p class="cf-muted">Photo sharing is currently disabled by FFGC.</p>'}</div>`;
+  }
+  const verify=$('cfVerify');
+  if(verify)verify.onsubmit=async e=>{e.preventDefault();try{await api('enter',{privateId:verify.elements.privateId.value});await refresh();}catch(err){say(err);}};
+  const send=$('cfSend');
+  if(send)send.onsubmit=async e=>{e.preventDefault();try{await api('message',{text:send.elements.text.value});send.reset();await refresh();}catch(err){say(err);}};
+  const media=$('cfMedia');
+  if(media)media.onsubmit=async e=>{
+    e.preventDefault();const f=media.elements.file.files[0];if(!f)return;
+    if(f.size>7*1024*1024)return alert('Maximum image size is 7 MB');
+    const reader=new FileReader();reader.onload=async()=>{try{await api('media',{data:reader.result,name:f.name});await refresh();}catch(err){say(err);}};
+    reader.readAsDataURL(f);
+  };
+  const chat=$('cfChat');if(chat)chat.scrollTop=chat.scrollHeight;
+}
+function render(){renderMember();renderAdmin();}
+async function refresh(){
+  if(busy)return;busy=true;
+  try{state=await api('state');lastError='';render();}
+  catch(e){lastError=e.message||'Unable to load Confession Room';state=null;renderAdmin();console.warn('Confession Room:',lastError);}
+  finally{busy=false;}
+}
+refresh();
+setInterval(refresh,2500);
 })();
