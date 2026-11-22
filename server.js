@@ -111,7 +111,7 @@ async function load() {
     await save();
   } else {
     db = value;
-    db.chamber ||= {sessions:[],activeId:null}; db.teams ||= []; db.spotlight ||= []; db.supportMessages ||= []; db.auctionHouse ||= {cycleStart:Date.now(), auctions:[], inventory:[], enabled:true}; db.dailyCheckIns ||= {startDate:'', records:[], deductions:[]};
+    db.chamber ||= {sessions:[],activeId:null}; db.teams ||= []; db.spotlight ||= []; db.supportMessages ||= []; db.auctionHouse ||= {cycleStart:Date.now(), auctions:[], inventory:[], enabled:true}; db.dailyCheckIns ||= {startDate:'', records:[], deductions:[]}; db.confessionRoom ||= {active:null};
     for (const m of db.members) m.profile ||= {};
   }
 }
@@ -410,6 +410,32 @@ function chamberView(s,admin,member){
   return base;
 }
 
+// CONFESSION ROOM — isolated from Decision Chamber; only God Admin controls sessions.
+function confessionStore(){db.confessionRoom ||= {active:null};return db.confessionRoom;}
+function confessionSafe(s,admin,member){
+  if(!s)return null;
+  const invited=s.invited.includes(member?.id);
+  const canRead=admin||(invited&&s.verified?.[member.id]);
+  const participants=s.invited.map(id=>({id:admin?id:undefined,isMe:!!member&&id===member.id,removed:s.removed.includes(id),name:db.members.find(m=>m.id===id)?.name||'Member',muted:!!s.muted[id],mediaAllowed:!!s.mediaAllowed[id],verified:!!s.verified[id]}));
+  const out={id:s.id,status:s.status,participants,createdAt:s.createdAt,canEnter:!!(invited&&!s.removed.includes(member?.id)),verified:!!(invited&&s.verified?.[member?.id]),removed:!!member&&s.removed.includes(member.id),messages:canRead?s.messages.map(m=>({id:m.id,name:m.name,text:m.text||'',media:m.media?{type:m.media.type,name:m.media.name}:null,at:m.at})):[]};
+  if(admin)out.admin={invited:s.invited,muted:s.muted,mediaAllowed:s.mediaAllowed,removed:s.removed};
+  return out;
+}
+async function confessionDeleteMedia(s){
+  const bucket='ffgc2k26-confession';
+  const paths=(s.messages||[]).filter(m=>m.media?.path).map(m=>m.media.path);
+  if(!paths.length)return;
+  const r=await fetch(SUPABASE_URL+'/storage/v1/object/'+bucket,{method:'DELETE',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({prefixes:paths})});
+  if(!r.ok)throw Error('Confession media cleanup failed: '+(await r.text()).slice(0,180));
+}
+async function confessionEnsureBucket(){
+  const bucket='ffgc2k26-confession',h={apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'};
+  let r=await fetch(SUPABASE_URL+'/storage/v1/bucket',{method:'POST',headers:h,body:JSON.stringify({id:bucket,name:bucket,public:false,file_size_limit:8*1024*1024,allowed_mime_types:['image/jpeg','image/png','image/webp','image/gif']})});
+  if(r.ok||r.status===409)return;
+  const detail=await r.text().catch(()=> '');
+  if(!/already exists|duplicate|409/i.test(detail))throw Error('Confession storage bucket setup failed: '+detail.slice(0,160));
+}
+
 async function api(req, res, url) {
   let b = {};
 
@@ -420,7 +446,7 @@ async function api(req, res, url) {
 
       for await (const c of req) {
         size += c.length;
-        if (size > (url.pathname === '/api/voice/admin' ? 64 * 1024 * 1024 : 100000)) throw Error('Payload too large');
+        if (size > (url.pathname === '/api/voice/admin' ? 64 * 1024 * 1024 : url.pathname.startsWith('/api/confession/media') ? 11 * 1024 * 1024 : 100000)) throw Error('Payload too large');
         chunks.push(c);
       }
 
@@ -715,6 +741,73 @@ async function api(req, res, url) {
       await save();return send(res,200,{ok:true});
     }
     return bad(res,'Unknown economy endpoint',404);
+  }
+
+  // CONFESSION ROOM — private multi-member live chat. God Admin identity is always FFGC.
+  if(route.startsWith('/api/confession/')){
+    const store=confessionStore(),room=store.active,member=memberSession(req);
+    if(route==='/api/confession/state'&&req.method==='GET')return send(res,200,{admin,memberId:member?.id||null,room:confessionSafe(room,admin,member),members:admin?db.members.map(m=>({id:m.id,name:m.name})):undefined});
+    if(route==='/api/confession/admin'&&req.method==='POST'){
+      if(!admin)return bad(res,'God Admin required',403);
+      if(b.action==='create'){
+        if(room&&room.status==='active')return bad(res,'Close the current Confession Room first');
+        const ids=Array.isArray(b.memberIds)?[...new Set(b.memberIds)]:[];
+        if(!ids.length||ids.length>30||ids.some(id=>!db.members.some(m=>m.id===id)))return bad(res,'Select between 1 and 30 valid members');
+        store.active={id:crypto.randomUUID(),status:'active',invited:ids,verified:{},muted:Object.fromEntries(ids.map(id=>[id,false])),mediaAllowed:Object.fromEntries(ids.map(id=>[id,false])),removed:[],messages:[],createdAt:Date.now()};
+        log('Confession Room opened',ids.map(chamberName).join(', '));await save();return send(res,200,{ok:true});
+      }
+      if(!room||room.status!=='active')return bad(res,'No active Confession Room');
+      if(b.action==='mute'||b.action==='media'){
+        if(!room.invited.includes(b.memberId)||room.removed.includes(b.memberId))return bad(res,'Participant not found');
+        if(b.action==='mute')room.muted[b.memberId]=!!b.value;else room.mediaAllowed[b.memberId]=!!b.value;
+      }else if(b.action==='remove'){
+        const ids=Array.isArray(b.memberIds)?b.memberIds:[b.memberId];
+        for(const id of ids)if(room.invited.includes(id)&&!room.removed.includes(id)){room.removed.push(id);delete room.verified[id];}
+      }else if(b.action==='close'){
+        await confessionDeleteMedia(room);room.messages=[];room.status='closed';room.closedAt=Date.now();store.active=null;log('Confession Room closed','Session and chat/media cleanup requested');await save();return send(res,200,{ok:true});
+      }else return bad(res,'Unknown Confession Room action');
+      await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/confession/enter'&&req.method==='POST'){
+      if(!member)return bad(res,'Member login required',401);
+      if(!room||room.status!=='active'||!room.invited.includes(member.id)||room.removed.includes(member.id))return bad(res,'You are not invited to this room',403);
+      if(!required(b.privateId,100))return bad(res,'Enter your Private ID');
+      const verified=db.members.find(m=>m.id===member.id&&m.codeHash&&secureEq(m.codeHash,hash(String(b.privateId).trim().toUpperCase())));
+      if(!verified)return bad(res,'Private ID does not match your logged-in account',403);
+      room.verified[member.id]=true;await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/confession/message'&&req.method==='POST'){
+      if(!member||!room||room.status!=='active'||!room.invited.includes(member.id)||room.removed.includes(member.id)||!room.verified[member.id])return bad(res,'Confession Room access denied',403);
+      if(room.muted[member.id])return bad(res,'You are muted by FFGC');
+      if(!required(b.text,1500))return bad(res,'Enter a message');
+      if(room.messages.length>=500)return bad(res,'Session message limit reached');
+      room.messages.push({id:crypto.randomUUID(),memberId:member.id,name:member.name,text:b.text.trim(),at:Date.now()});await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/confession/media'&&req.method==='GET'){
+      const msg=room?.messages.find(x=>x.id===url.searchParams.get('id')&&x.media?.path);
+      if(!room||room.status!=='active'||!msg||(!admin&&(!member||!room.invited.includes(member.id)||room.removed.includes(member.id)||!room.verified[member.id])))return bad(res,'Media access denied',403);
+      const file=await fetch(SUPABASE_URL+'/storage/v1/object/ffgc2k26-confession/'+msg.media.path,{headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY}});
+      if(!file.ok)return bad(res,'Media unavailable',404);
+      const bytes=Buffer.from(await file.arrayBuffer());res.writeHead(200,{'Content-Type':msg.media.type,'Content-Length':bytes.length,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'});return res.end(bytes);
+    }
+    if(route==='/api/confession/media'&&req.method==='POST'){
+      if(!room||room.status!=='active')return bad(res,'No active Confession Room');
+      if(!admin&&(!member||!room.invited.includes(member.id)||room.removed.includes(member.id)||!room.verified[member.id]))return bad(res,'Confession Room access denied',403);
+      if(!admin&&room.muted[member.id])return bad(res,'You are muted by FFGC');
+      if(!admin&&!room.mediaAllowed[member.id])return bad(res,'Media sharing is disabled by FFGC');
+      if(typeof b.data!=='string'||!/^data:image\/(jpeg|png|webp|gif);base64,/.test(b.data)||b.data.length>10*1024*1024)return bad(res,'Only images up to 7 MB are allowed');
+      const match=b.data.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/);if(!match)return bad(res,'Invalid image');
+      const bytes=Buffer.from(match[2],'base64');if(bytes.length>7*1024*1024)return bad(res,'Image exceeds 7 MB');
+      await confessionEnsureBucket();const ext=match[1].split('/')[1].replace('jpeg','jpg'),objectPath=room.id+'/'+crypto.randomUUID()+'.'+ext;
+      const up=await fetch(SUPABASE_URL+'/storage/v1/object/ffgc2k26-confession/'+objectPath,{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':match[1],'x-upsert':'false'},body:bytes});
+      if(!up.ok)throw Error('Image upload failed: '+(await up.text()).slice(0,160));
+      room.messages.push({id:crypto.randomUUID(),memberId:admin?null:member.id,name:admin?'FFGC':member.name,text:'',media:{path:objectPath,type:match[1],name:String(b.name||'Image').slice(0,100)},at:Date.now()});await save();return send(res,200,{ok:true});
+    }
+    if(route==='/api/confession/admin-message'&&req.method==='POST'){
+      if(!admin)return bad(res,'God Admin required',403);if(!room||room.status!=='active'||!required(b.text,1500))return bad(res,'No active room or empty message');
+      room.messages.push({id:crypto.randomUUID(),memberId:null,name:'FFGC',text:b.text.trim(),at:Date.now()});await save();return send(res,200,{ok:true});
+    }
+    return bad(res,'Not found',404);
   }
 
   // DECISION CHAMBER — member/admin authentication is enforced on every route.
@@ -1706,7 +1799,11 @@ const types = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
-  '.svg': 'image/svg+xml'
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg'
 };
 
 const allowedFiles = new Set([
@@ -1733,6 +1830,8 @@ const allowedFiles = new Set([
   // Decision Chamber
   'chamber.js',
   'chamber.css',
+  'confession.js',
+  'confession.css',
 
   // Economic Empire
   'economy.html',
