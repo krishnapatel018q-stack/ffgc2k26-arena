@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="/royale6.css?v=6.0">
 <link rel="stylesheet" href="/auction.css">
 <link rel="stylesheet" href="/chamber.css">
+<link rel="stylesheet" href="/confession.css?v=1">
 <link rel="stylesheet" href="/elimination.css">
 <link rel="stylesheet" href="/obsidian.css?v=spotlight-expand-fix-20261121">
 
@@ -237,6 +238,12 @@ body.economic-empire-open {
 
   <div id="chamberPublic"></div>
   <div id="chamberPrivate"></div>
+</section>
+
+<section id="confessionRoom" class="panel">
+  <div class="sectionHeading"><div><small>👑 PRIVATE LIVE SESSION</small><h2>Confession Room</h2></div><span class="badge">INVITE ONLY</span></div>
+  <p class="muted">Only selected members can enter after verifying their Private ID. Messages are visible only to verified participants and God Admin.</p>
+  <div id="confessionPublic"></div><div id="confessionPrivate"></div>
 </section>
 
 <section id="auctionHouse" class="panel">
@@ -646,6 +653,9 @@ body.economic-empire-open {
       id="chamberAdmin"
     ></div>
 
+    <h3 class="adminSub">👑 Confession Room Control</h3>
+    <div class="adminCard" id="confessionAdmin"></div>
+
     <h3 class="adminSub">
       🔨 Auction House Control
     </h3>
@@ -837,6 +847,7 @@ body.economic-empire-open {
 <script src="/app.js?v=obsidian4-hall"></script>
 <script src="/auction.js"></script>
 <script src="/chamber.js"></script>
+<script src="/confession.js?v=1"></script>
 <script src="/elimination.js?v=20261025-stability3"></script>
 <script src="/royale.js?v=checkin-tasks-nav-fix-20261121" defer></script>
 <script src="/member5.js?v=hall-home-20261029" defer></script>
