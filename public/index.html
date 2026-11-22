@@ -377,7 +377,25 @@ body.economic-empire-open {
 
   <div id="dashboard" class="hidden">
 
-    <div id="adminMainView">
+    <div class="adminCard confession-launch-card" style="margin-bottom:18px">
+      <div class="confession-launch-copy">
+        <h3>💬 Confession Room</h3>
+        <p>Dedicated private room controls — invitations, participants, chat and permissions.</p>
+      </div>
+      <button type="button" id="openConfessionAdmin" class="primary">Open Confession Room Control ↗</button>
+    </div>
+
+    <section id="confessionAdminDedicated" class="hidden" aria-label="Confession Room Control">
+      <div class="adminCard confession-dedicated-head">
+        <div>
+          <p class="confession-kicker">GOD ADMIN • PRIVATE CONTROL</p>
+          <h2>💬 Confession Room Control</h2>
+          <p>Manage room access, invited members, moderation and messages from this separate panel.</p>
+        </div>
+        <button type="button" id="backFromConfessionAdmin" class="ghost">← Back to Admin Panel</button>
+      </div>
+      <div class="adminCard" id="confessionAdmin"></div>
+    </section>
 
     <div class="adminCard" style="margin-bottom:18px">
       <h3>💰 Economic Empire</h3>
@@ -391,12 +409,6 @@ body.economic-empire-open {
       >
         👑 Open Economic Empire Control ↗
       </a>
-    </div>
-
-    <div class="adminCard" id="confessionRoomAdminShortcut" style="margin-bottom:18px;border-color:#7658b8;background:linear-gradient(135deg,#211a3b,#121629)">
-      <h3>👑 Confession Room</h3>
-      <p class="muted">Dedicated private-session management. Invite members, manage access and messages, and control the active room.</p>
-      <button type="button" class="primary" id="openConfessionAdminPage">Open Confession Room Control ↗</button>
     </div>
 
     <div class="adminGrid">
@@ -809,20 +821,6 @@ body.economic-empire-open {
     <h3 class="adminSub">Activity History</h3>
     <div id="history" class="adminList"></div>
 
-    </div><!-- /adminMainView -->
-
-    <div id="confessionAdminPage" class="hidden">
-      <div class="sectionHeading">
-        <div>
-          <small>PRIVATE / GOD ADMIN ONLY</small>
-          <h2>👑 Confession Room Control</h2>
-        </div>
-        <button type="button" class="ghost" id="backFromConfessionAdmin">← Back to Control Center</button>
-      </div>
-      <p class="muted">Dedicated management page for the private Confession Room. Only God Admin can manage this session.</p>
-      <div class="adminCard" id="confessionAdmin"></div>
-    </div>
-
   </div>
 </section>
 
@@ -876,27 +874,6 @@ body.economic-empire-open {
 <script>
 (function () {
   const adminPanel = document.getElementById('admin');
-  const adminMainView = document.getElementById('adminMainView');
-  const confessionAdminPage = document.getElementById('confessionAdminPage');
-
-  function openConfessionAdminPage() {
-    if (!adminMainView || !confessionAdminPage) return;
-    adminMainView.classList.add('hidden');
-    confessionAdminPage.classList.remove('hidden');
-    confessionAdminPage.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  function closeConfessionAdminPage() {
-    if (!adminMainView || !confessionAdminPage) return;
-    confessionAdminPage.classList.add('hidden');
-    adminMainView.classList.remove('hidden');
-    adminMainView.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  document.getElementById('openConfessionAdminPage')
-    ?.addEventListener('click', openConfessionAdminPage);
-  document.getElementById('backFromConfessionAdmin')
-    ?.addEventListener('click', closeConfessionAdminPage);
 
   function openAdmin() {
     if (!adminPanel) return;
@@ -964,6 +941,35 @@ body.economic-empire-open {
     ) {
       closeEconomy();
     }
+  });
+})();
+</script>
+
+
+<style>
+  .confession-launch-card{display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid rgba(164,116,255,.32);background:linear-gradient(125deg,rgba(85,47,145,.22),rgba(18,22,42,.96));}
+  .confession-launch-copy h3{margin:0 0 7px;font-size:1.12rem}
+  .confession-launch-copy p,.confession-dedicated-head p{margin:0;color:var(--muted,#aeb5c8);font-size:.9rem}
+  #dashboard.confession-admin-mode> :not(#confessionAdminDedicated){display:none!important}
+  #dashboard.confession-admin-mode>#confessionAdminDedicated{display:block!important}
+  .confession-dedicated-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
+  .confession-dedicated-head h2{margin:4px 0 8px;font-size:1.35rem}
+  .confession-kicker{font-size:.7rem!important;letter-spacing:.16em;color:#c5a2ff!important;font-weight:800;margin:0!important}
+  @media(max-width:600px){.confession-launch-card,.confession-dedicated-head{align-items:stretch;flex-direction:column}.confession-launch-card button,.confession-dedicated-head button{width:100%}}
+</style>
+<script>
+(()=>{
+  const dashboard=document.getElementById('dashboard');
+  const open=document.getElementById('openConfessionAdmin');
+  const back=document.getElementById('backFromConfessionAdmin');
+  if(!dashboard||!open||!back)return;
+  open.addEventListener('click',()=>{
+    dashboard.classList.add('confession-admin-mode');
+    document.getElementById('confessionAdminDedicated')?.scrollIntoView({behavior:'smooth',block:'start'});
+  });
+  back.addEventListener('click',()=>{
+    dashboard.classList.remove('confession-admin-mode');
+    dashboard.scrollIntoView({behavior:'smooth',block:'start'});
   });
 })();
 </script>
