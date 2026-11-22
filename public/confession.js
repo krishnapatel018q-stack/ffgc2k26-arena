@@ -247,6 +247,8 @@ function renderAdmin() {
 
       try {
         await api('admin-message', {text: message});
+        // Clear the sent text before the refresh renderer preserves the draft.
+        af.elements.text.value = '';
         await refresh();
       } catch (err) {
         say(err);

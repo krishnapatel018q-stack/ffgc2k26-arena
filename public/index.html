@@ -963,13 +963,31 @@ body.economic-empire-open {
   const open=document.getElementById('openConfessionAdmin');
   const back=document.getElementById('backFromConfessionAdmin');
   if(!dashboard||!open||!back)return;
-  open.addEventListener('click',()=>{
+  const page=document.getElementById('confessionAdminDedicated');
+  if(!page)return;
+
+  function showConfessionAdmin(){
+    // The .hidden rule uses !important, so explicitly remove it before
+    // switching the dashboard into its dedicated single-section view.
+    page.classList.remove('hidden');
+    page.setAttribute('aria-hidden','false');
     dashboard.classList.add('confession-admin-mode');
-    document.getElementById('confessionAdminDedicated')?.scrollIntoView({behavior:'smooth',block:'start'});
-  });
-  back.addEventListener('click',()=>{
+    requestAnimationFrame(()=>page.scrollIntoView({behavior:'smooth',block:'start'}));
+  }
+
+  function showMainAdmin(){
     dashboard.classList.remove('confession-admin-mode');
+    page.classList.add('hidden');
+    page.setAttribute('aria-hidden','true');
     dashboard.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+
+  open.addEventListener('click',showConfessionAdmin);
+  back.addEventListener('click',showMainAdmin);
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&dashboard.classList.contains('confession-admin-mode')){
+      showMainAdmin();
+    }
   });
 })();
 </script>
