@@ -19,3 +19,7 @@
 
 /* Long-form Hall of Spotlight descriptions */
 .spotlightDescription{margin:14px 0;color:#e3ddf5;overflow-wrap:anywhere}.spotlightDescription summary{cursor:pointer;color:#f5d68a;font-weight:700;padding:8px 0}.spotlightDescription p{white-space:pre-wrap;line-height:1.65;max-height:420px;overflow-y:auto;padding-right:6px}.spotlightCard{overflow-wrap:anywhere}
+/* Daily check-in pending-list controls */
+.checkInActions{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+button.danger{background:linear-gradient(120deg,#7d2638,#b83b4e);border:1px solid #d45b6c;color:#fff}
+button.danger:hover{filter:brightness(1.12)}
