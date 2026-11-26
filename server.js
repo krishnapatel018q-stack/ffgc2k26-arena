@@ -296,6 +296,7 @@ function ensureDailyCheckIns() {
   db.dailyCheckIns ||= { startDate: '', records: [], deductions: [] };
   db.dailyCheckIns.records ||= [];
   db.dailyCheckIns.deductions ||= [];
+  db.dailyCheckIns.dismissed ||= [];
   if (!db.dailyCheckIns.startDate) db.dailyCheckIns.startDate = indiaDateString();
   return db.dailyCheckIns;
 }
@@ -312,7 +313,8 @@ function dailyCheckInPending() {
       if (date < memberStart) continue;
       const checked = data.records.some(r => r.memberId === member.id && r.date === date);
       const processed = data.deductions.some(r => r.memberId === member.id && r.date === date);
-      if (!checked && !processed) pending.push({ memberId: member.id, memberName: member.name, date, points: 50 });
+      const dismissed = data.dismissed.some(r => r.memberId === member.id && r.date === date);
+      if (!checked && !processed && !dismissed) pending.push({ memberId: member.id, memberName: member.name, date, points: 50 });
     }
   }
   return pending;
@@ -1042,6 +1044,17 @@ async function api(req, res, url) {
   if (route === '/api/checkin/admin' && req.method === 'POST') {
     if (!admin) return bad(res, 'Admin authentication required', 401);
     const data = ensureDailyCheckIns();
+    if (b.action === 'clear_all') {
+      const pendingNow = dailyCheckInPending();
+      const existing = new Set(data.dismissed.map(r => `${r.memberId}|${r.date}`));
+      for (const item of pendingNow) {
+        const key = `${item.memberId}|${item.date}`;
+        if (!existing.has(key)) data.dismissed.push({ memberId: item.memberId, date: item.date, at: new Date().toISOString(), by: ADMIN_USER });
+      }
+      log('Daily check-in list cleared', `${pendingNow.length} pending entries dismissed; no points deducted`);
+      await save();
+      return send(res, 200, { ok: true, cleared: pendingNow.length, pending: [] });
+    }
     const member = db.members.find(m => m.id === b.memberId);
     if (!member || !/^\d{4}-\d{2}-\d{2}$/.test(String(b.date || ''))) return bad(res, 'Invalid member or missed date');
     const pending = dailyCheckInPending().some(x => x.memberId === b.memberId && x.date === b.date);
