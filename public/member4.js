@@ -4,7 +4,7 @@ const routes=[
  ['home','⌂','Home',[]],
  ['leaderboard','♛','Ranks',['leaderboard','teams']],
  ['events','⚔','Events',['tasks','polls','eliminationArena','decisionChamber']],
- ['empire','◈','Empire',[]],
+ ['empire','✦','Eventverse',[]],
  ['auction','◆','Auctions',['auctionHouse']],
  ['spotlight','✦','Spotlight',['spotlightSection']],
  ['news','▤','News',['announcements']],
@@ -14,7 +14,7 @@ let active='home';
 const byId=id=>document.getElementById(id);
 function create(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text)e.textContent=text;return e}
 function navigate(route,{scroll=true}={}){
- if(route==='empire'){byId('openEconomicEmpire')?.click();return}
+ if(route==='empire'){byId('openEventverse')?.click();return}
  if(!routes.some(r=>r[0]===route))route='home';
  active=route;
  const all=new Set(routes.flatMap(r=>r[3]));

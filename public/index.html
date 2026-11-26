@@ -15,64 +15,11 @@
 <link rel="stylesheet" href="/confession.css?v=20261122-admin-fix1">
 <link rel="stylesheet" href="/elimination.css">
 <link rel="stylesheet" href="/obsidian.css?v=spotlight-expand-fix-20261121">
+<link rel="stylesheet" href="/eventverse.css?v=1">
 
 <style>
-#economicEmpireOverlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2147483001;
-  background: #08120f;
-  display: none;
-  flex-direction: column;
-}
-
-#economicEmpireOverlay.is-open {
-  display: flex;
-}
-
-#economicEmpireToolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 16px;
-  background: #0d1b15;
-  border-bottom: 1px solid #b9994d;
-  color: #f7e5aa;
-  font: 600 15px system-ui,sans-serif;
-}
-
-#economicEmpireClose {
-  background: #e7c773;
-  color: #111;
-  border: 0;
-  border-radius: 9px;
-  padding: 10px 15px;
-  cursor: pointer;
-  font-weight: 700;
-}
-
-#economicEmpireFrame {
-  flex: 1;
-  width: 100%;
-  border: 0;
-  background: #07120c;
-}
-
-body.economic-empire-open {
-  overflow: hidden;
-}
-
-@media(max-width:600px) {
-  #economicEmpireToolbar {
-    padding: 8px 10px;
-    font-size: 13px;
-  }
-
-  #economicEmpireClose {
-    padding: 9px 12px;
-  }
-}
+#eventverseOverlay{position:fixed;inset:0;z-index:2147483001;background:#080b12;color:#f4f1e8;display:none;flex-direction:column;overflow:auto}
+#eventverseOverlay.is-open{display:flex}body.eventverse-open{overflow:hidden}
 </style>
 </head>
 
@@ -89,9 +36,9 @@ body.economic-empire-open {
     <button
       type="button"
       class="ghost"
-      id="openEconomicEmpire"
+      id="openEventverse"
     >
-      💰 Economic Empire
+      ✦ FFGC Eventverse
     </button>
 
     <button
@@ -397,18 +344,9 @@ body.economic-empire-open {
       <div class="adminCard" id="confessionAdmin"></div>
     </section>
 
-    <div class="adminCard" style="margin-bottom:18px">
-      <h3>💰 Economic Empire</h3>
-
-      <p>Separate economy control dashboard</p>
-
-      <a
-        class="primary"
-        href="/economy-admin.html"
-        style="display:inline-block;padding:12px"
-      >
-        👑 Open Economic Empire Control ↗
-      </a>
+    <div class="adminCard eventverse-admin-launch" style="margin-bottom:18px">
+      <div><h3>✦ Event Management</h3><p class="muted">Create events, manage personal and team tasks, review submissions, evaluate members and publish results.</p></div>
+      <button type="button" class="primary" id="openEventverseAdmin">Open Event Management ↗</button>
     </div>
 
     <div class="adminGrid">
@@ -833,30 +771,10 @@ body.economic-empire-open {
 
 <div id="toast" role="status"></div>
 
-<!-- ECONOMIC EMPIRE OVERLAY -->
-
-<div
-  id="economicEmpireOverlay"
-  role="dialog"
-  aria-modal="true"
-  aria-label="Economic Empire"
->
-  <div id="economicEmpireToolbar">
-    <span>💰 FFGC2K26 — ECONOMIC EMPIRE</span>
-
-    <button
-      type="button"
-      id="economicEmpireClose"
-    >
-      ← Back to Arena
-    </button>
-  </div>
-
-  <iframe
-    id="economicEmpireFrame"
-    title="Economic Empire member dashboard"
-    loading="lazy"
-  ></iframe>
+<!-- FFGC EVENTVERSE -->
+<div id="eventverseOverlay" role="dialog" aria-modal="true" aria-label="FFGC Eventverse">
+  <div class="ev-topbar"><div><small>FFGC2K26 • PERMANENT EVENT PLATFORM</small><h2>✦ FFGC EVENTVERSE</h2></div><button type="button" id="closeEventverse" class="ev-close">← Back to Arena</button></div>
+  <div id="eventverseApp" class="ev-shell"><div class="ev-loading">Loading Eventverse…</div></div>
 </div>
 
 <!-- MAIN APPLICATION SCRIPTS -->
@@ -868,6 +786,7 @@ body.economic-empire-open {
 <script src="/elimination.js?v=20261025-stability3"></script>
 <script src="/royale.js?v=checkin-tasks-nav-fix-20261121" defer></script>
 <script src="/member5.js?v=hall-home-20261029" defer></script>
+<script src="/eventverse.js?v=1" defer></script>
 
 <!-- QUICK ACCESS CONTROLS -->
 
@@ -889,59 +808,13 @@ body.economic-empire-open {
   }
 
   document.addEventListener('click', function(event) {
+    if (event.target.closest('#ffgcProfileEventverse')) { document.getElementById('openEventverse')?.click(); }
     if (event.target.closest('#ffgcProfileAdmin')) {
       document.getElementById('adminBtn')?.click();
       openAdmin();
     }
-    if (event.target.closest('#ffgcProfileEconomy')) openEconomy();
   });
-
-  if (location.hash === '#admin') {
-    openAdmin();
-  }
-
-  const overlay =
-    document.getElementById('economicEmpireOverlay');
-
-  const frame =
-    document.getElementById('economicEmpireFrame');
-
-  const close =
-    document.getElementById('economicEmpireClose');
-
-  function openEconomy() {
-    if (!frame.getAttribute('src')) {
-      frame.setAttribute('src', '/economy.html');
-    }
-
-    overlay.classList.add('is-open');
-    document.body.classList.add('economic-empire-open');
-  }
-
-  function closeEconomy() {
-    overlay.classList.remove('is-open');
-    document.body.classList.remove('economic-empire-open');
-  }
-
-  document.getElementById('openEconomicEmpire')
-    .addEventListener('click', openEconomy);
-
-  close.addEventListener('click', closeEconomy);
-
-  document.addEventListener('keydown', function (event) {
-    if (event.key === 'Escape') {
-      closeEconomy();
-    }
-  });
-
-  window.addEventListener('message', function (event) {
-    if (
-      event.origin === location.origin &&
-      event.data === 'ffgc-economy-close'
-    ) {
-      closeEconomy();
-    }
-  });
+  if (location.hash === '#admin') openAdmin();
 })();
 </script>
 

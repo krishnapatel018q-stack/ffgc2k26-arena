@@ -2,7 +2,7 @@
 const groups=[
 ['overview','⌂','Overview',[]],
 ['confession','💬','Confession Room',[0,1]],
-['economy','◈','Economic Empire',[2]],
+['eventverse','✦','Event Management',[2]],
 ['settings','⚙','Website Controls',[3]],
 ['announcements','◈','Announcements',[4,5]],
 ['support','✉','Support Box',[6,7]],

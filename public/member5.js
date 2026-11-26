@@ -982,7 +982,7 @@
 
   function openRoute(key) {
     if (key === "empire") {
-      $("openEconomicEmpire")?.click();
+      $("openEventverse")?.click();
       return;
     }
 
@@ -1374,9 +1374,9 @@
       if (!$('ffgcProfileActions')) {
         const actions = create('div', 'ffgc-profile-actions', `
           <div class="ffgc-profile-actions-heading">✦ PRIVATE ACCESS PORTAL</div>
-          <button type="button" id="ffgcProfileEconomy" class="ffgc-obsidian-btn">
+          <button type="button" id="ffgcProfileEventverse" class="ffgc-obsidian-btn">
             <span class="ffgc-obsidian-icon">◈</span>
-            <span><strong>ECONOMIC EMPIRE</strong><small>Enter the marketplace ↗</small></span>
+            <span><strong>FFGC EVENTVERSE</strong><small>Open events and challenges ↗</small></span>
           </button>
           <button type="button" id="ffgcProfileAdmin" class="ffgc-obsidian-btn">
             <span class="ffgc-obsidian-icon">♛</span>
