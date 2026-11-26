@@ -111,7 +111,7 @@ async function load() {
     await save();
   } else {
     db = value;
-    db.chamber ||= {sessions:[],activeId:null}; db.teams ||= []; db.spotlight ||= []; db.supportMessages ||= []; db.auctionHouse ||= {cycleStart:Date.now(), auctions:[], inventory:[], enabled:true}; db.dailyCheckIns ||= {startDate:'', records:[], deductions:[]}; db.confessionRoom ||= {active:null};
+    db.chamber ||= {sessions:[],activeId:null}; db.teams ||= []; db.spotlight ||= []; db.supportMessages ||= []; db.auctionHouse ||= {cycleStart:Date.now(), auctions:[], inventory:[], enabled:true}; db.dailyCheckIns ||= {startDate:'', records:[], deductions:[]}; db.confessionRoom ||= {active:null}; db.eventverse ||= {events:[],teams:[],templates:[],notifications:[],history:[]};
     for (const m of db.members) m.profile ||= {};
   }
 }
@@ -446,7 +446,7 @@ async function api(req, res, url) {
 
       for await (const c of req) {
         size += c.length;
-        if (size > (url.pathname === '/api/voice/admin' ? 64 * 1024 * 1024 : url.pathname.startsWith('/api/confession/media') ? 11 * 1024 * 1024 : 100000)) throw Error('Payload too large');
+        if (size > (url.pathname === '/api/voice/admin' ? 64 * 1024 * 1024 : url.pathname.startsWith('/api/confession/media') ? 11 * 1024 * 1024 : url.pathname.startsWith('/api/eventverse/') ? 220000 : 100000)) throw Error('Payload too large');
         chunks.push(c);
       }
 
@@ -625,122 +625,6 @@ async function api(req, res, url) {
       log('Elimination poll '+b.action,p.title);await save();return send(res,200,{ok:true});
     }
     return bad(res,'Unknown elimination request',404);
-  }
-
-  if(route.startsWith('/api/economy/')){
-    const e=economyStore(),m=memberSession(req);
-    if(route==='/api/economy/state'&&req.method==='GET')return send(res,200,economyView(e,m,admin));
-    if(!admin&&!m)return bad(res,'Login with your private member ID first',401);
-    if(!admin&&!e.enabled)return bad(res,'Economy temporarily closed',403);
-    const acc=m?e.accounts[m.id]:null;
-    if(route==='/api/economy/order'&&req.method==='POST'){
-      if(!m)return bad(res,'Member only',403);
-      if(!econMarketOpen(e))return bad(res,'Market opens daily at 8:00 AM and closes at 10:00 PM IST');
-      const co=e.companies.find(x=>x.id===b.companyId&&!x.archived&&!x.frozen);
-      const qty=econNum(b.quantity);
-      if(!co||!qty||qty>1000||!['buy','sell'].includes(b.side))return bad(res,'Invalid trade');
-      const cost=qty*co.price;if(!Number.isSafeInteger(cost))return bad(res,'Invalid cost');
-      if(b.side==='buy'&&acc.cash<cost)return bad(res,'Insufficient FC');
-      if(b.side==='sell'&&(acc.shares[co.id]||0)<qty)return bad(res,'Insufficient shares');
-      if(b.side==='buy'&&co.supply<qty)return bad(res,'Not enough shares available');
-      
-      // Reserve at request time, execute at locked price after approval.
-      if(b.side==='buy')acc.cash-=cost;else acc.shares[co.id]-=qty;
-      const order={id:crypto.randomUUID(),memberId:m.id,companyId:co.id,side:b.side,quantity:qty,price:co.price,cost,status:e.approvalMode?'pending':'approved',at:new Date().toISOString()};
-      e.orders.push(order);
-      if(!e.approvalMode){if(b.side==='buy'){acc.shares[co.id]=(acc.shares[co.id]||0)+qty;co.supply-=qty;}else{acc.cash+=cost;co.supply+=qty;}econRecord(e,'trade',m.id,b.side+' '+qty+' '+co.name+' @ '+co.price);}
-      await save();return send(res,200,{ok:true,status:order.status});
-    }
-    if(route==='/api/economy/business-buy'&&req.method==='POST'){
-      if(!m)return bad(res,'Member only',403);
-      const t=e.businessTypes.find(x=>x.id===b.id&&!x.archived);
-      if(!t||acc.cash<t.price)return bad(res,'Unavailable or insufficient FC');
-      if(e.businesses.filter(x=>x.memberId===m.id).length>=3)return bad(res,'Maximum 3 businesses per member');
-      acc.cash-=t.price;e.businesses.push({id:crypto.randomUUID(),typeId:t.id,memberId:m.id,paidAt:Date.now(),level:1});econRecord(e,'business_purchase',m.id,t.name+' -'+t.price+' FC');await save();return send(res,200,{ok:true});
-    }
-    if(route==='/api/economy/business-upgrade'&&req.method==='POST'){
-      if(!m)return bad(res,'Member only',403);const owned=e.businesses.find(x=>x.id===b.id&&x.memberId===m.id);const t=e.businessTypes.find(x=>x.id===owned?.typeId);if(!owned||!t||econBusinessLevel(owned)>=5)return bad(res,'Upgrade unavailable');
-      const cost=Math.round(t.price*.4*econBusinessLevel(owned));if(acc.cash<cost)return bad(res,'Insufficient FC');acc.cash-=cost;owned.level=econBusinessLevel(owned)+1;econRecord(e,'business_upgrade',m.id,t.name+' level '+owned.level+' -'+cost+' FC');await save();return send(res,200,{ok:true});
-    }
-    if(route==='/api/economy/business-sell'&&req.method==='POST'){
-      if(!m)return bad(res,'Member only',403);const i=e.businesses.findIndex(x=>x.id===b.id&&x.memberId===m.id);if(i<0)return bad(res,'Business not owned');const owned=e.businesses[i],t=e.businessTypes.find(x=>x.id===owned.typeId);if(!t)return bad(res,'Business missing');const value=Math.round(t.price*(.55+.1*(econBusinessLevel(owned)-1)));acc.cash+=value;e.businesses.splice(i,1);econRecord(e,'business_resale',m.id,t.name+' +'+value+' FC');await save();return send(res,200,{ok:true,value});
-    }
-    if(route==='/api/economy/mission'&&req.method==='POST'){
-      if(!m)return bad(res,'Member only',403);const day=new Date(Date.now()+330*60000).toISOString().slice(0,10),key=m.id+':'+day,missions=e.missions[key]||[];
-      if(!['invest','portfolio','business'].includes(b.kind)||missions.includes(b.kind))return bad(res,'Mission already claimed or invalid');
-      const eligible=b.kind==='invest'?e.orders.some(o=>o.memberId===m.id&&o.status==='approved'&&o.side==='buy'):b.kind==='portfolio'?Object.values(acc.shares).some(n=>n>0):e.businesses.some(x=>x.memberId===m.id);
-      if(!eligible)return bad(res,'Complete the mission first');const reward=b.kind==='business'?100:50;acc.cash+=reward;e.missions[key]=[...missions,b.kind];econRecord(e,'daily_mission',m.id,b.kind+' +'+reward+' FC');await save();return send(res,200,{ok:true,reward});
-    }
-    if(route==='/api/economy/product-buy'&&req.method==='POST'){
-      if(!m)return bad(res,'Member only',403);
-      const t=e.products.find(x=>x.id===b.id&&!x.archived);
-      if(!t||t.stock===0||acc.cash<t.price)return bad(res,'Unavailable or insufficient FC');
-      if(['analytics','prestige'].includes(t.effect)&&e.items.some(x=>x.memberId===m.id&&x.effect===t.effect))return bad(res,'Already owned');
-      acc.cash-=t.price;if(t.stock>0)t.stock--;e.items.push({id:crypto.randomUUID(),productId:t.id,title:t.name,memberId:m.id,at:new Date().toISOString(),status:'owned',effect:t.effect||'',expiresAt:t.days>0?Date.now()+t.days*86400000:null});econRecord(e,'marketplace_purchase',m.id,t.name+' -'+t.price+' FC');await save();return send(res,200,{ok:true});
-    }
-    if(route==='/api/economy/item-activate'&&req.method==='POST'){
-      if(!m)return bad(res,'Member only',403);const item=e.items.find(x=>x.id===b.id&&x.memberId===m.id&&x.effect==='business_boost'&&x.status==='owned');const owned=e.businesses.find(x=>x.id===b.businessId&&x.memberId===m.id);if(!item||!owned)return bad(res,'Invalid boost or business');item.businessId=owned.id;item.status='active';item.expiresAt=Date.now()+7*86400000;econRecord(e,'item_activated',m.id,item.title);await save();return send(res,200,{ok:true});
-    }
-    if(route==='/api/economy/trade-offer'&&req.method==='POST'){
-      if(!m)return bad(res,'Member only',403);
-      const to=db.members.find(x=>x.id===b.toId);const amount=econNum(b.amount);
-      if(!to||to.id===m.id||amount===null||amount===0||acc.cash<amount)return bad(res,'Invalid offer');
-      const pass=e.items.some(x=>x.memberId===m.id&&x.effect==='trading'&&x.expiresAt>Date.now());
-      const daily=e.trades.filter(x=>x.fromId===m.id&&new Date(x.at).toDateString()===new Date().toDateString()&&!['rejected'].includes(x.status)).reduce((n,x)=>n+x.amount,0);
-      if(daily+amount>(pass?10000:3000))return bad(res,'Daily FC transfer limit reached');
-      acc.cash-=amount;e.trades.push({id:crypto.randomUUID(),fromId:m.id,toId:to.id,amount,status:'offered',at:new Date().toISOString()});await save();return send(res,200,{ok:true});
-    }
-    if(route==='/api/economy/trade-respond'&&req.method==='POST'){
-      if(!m)return bad(res,'Member only',403);
-      const t=e.trades.find(x=>x.id===b.id&&x.toId===m.id&&x.status==='offered');if(!t)return bad(res,'Offer not found');
-      if(b.action==='reject'){e.accounts[t.fromId].cash+=t.amount;t.status='rejected';}
-      else if(b.action==='accept')t.status='pending';else return bad(res,'Invalid action');
-      await save();return send(res,200,{ok:true});
-    }
-    if(!admin)return bad(res,'God Admin only',403);
-    if(route==='/api/economy/admin'&&req.method==='POST'){
-      const op=b.action;
-      if(op==='settings'){
-        for(const key of ['enabled','marketOpen','approvalMode','autoMarket'])if(typeof b[key]==='boolean')e[key]=b[key];
-      }else if(op==='cash'){
-        const a=e.accounts[b.memberId],n=econNum(b.amount);if(!a||n===null||!['add','subtract'].includes(b.mode))return bad(res,'Invalid adjustment');
-        if(b.mode==='subtract'&&a.cash<n)return bad(res,'Insufficient cash');a.cash+=b.mode==='add'?n:-n;econRecord(e,'admin_cash',b.memberId,b.mode+' '+n+' FC');
-      }else if(op==='company'){
-        const price=econNum(b.price),supply=econNum(b.supply);if(!String(b.name||'').trim()||!price||supply===null)return bad(res,'Invalid company');
-        const co=b.id?e.companies.find(x=>x.id===b.id):null;
-        if(co){co.name=String(b.name).slice(0,70);co.price=price;co.supply=supply;co.history.push({at:new Date().toISOString(),price});}
-        else e.companies.push({id:crypto.randomUUID(),name:String(b.name).slice(0,70),price,supply,history:[{at:new Date().toISOString(),price}],frozen:false});
-      }else if(op==='company-control'){
-        const co=e.companies.find(x=>x.id===b.id);if(!co)return bad(res,'Company missing');
-        if(b.mode==='freeze')co.frozen=true;else if(b.mode==='unfreeze')co.frozen=false;else if(b.mode==='archive')co.archived=true;else return bad(res,'Invalid mode');
-      }else if(op==='schedule'){
-        const co=e.companies.find(x=>x.id===b.companyId&&!x.archived),target=econNum(b.target),startAt=Date.parse(b.startAt),minutes=Number(b.minutes);
-        if(!co||!target||!Number.isFinite(startAt)||startAt<Date.now()-60000||!Number.isFinite(minutes)||minutes<1||minutes>1440)return bad(res,'Invalid schedule');
-        e.schedules.push({id:crypto.randomUUID(),companyId:co.id,target,startAt,durationMs:minutes*60000,status:'pending'});
-      }else if(op==='cancel-schedule'){
-        const sc=e.schedules.find(x=>x.id===b.id&&x.status==='pending');if(!sc)return bad(res,'Only pending schedules can be cancelled');sc.status='cancelled';
-      }else if(op==='business-type'||op==='product'){
-        const name=String(b.name||'').trim(),price=econNum(b.price);if(!name||price===null)return bad(res,'Invalid listing');
-        if(op==='business-type'){const income=econNum(b.income),maintenance=econNum(b.maintenance);if(income===null||maintenance===null)return bad(res,'Invalid income');const existing=e.businessTypes.find(x=>x.id===b.id);if(existing)Object.assign(existing,{name:name.slice(0,70),price,income,maintenance});else e.businessTypes.push({id:crypto.randomUUID(),name:name.slice(0,70),price,income,maintenance});}
-        else {const stock=econNum(b.stock);if(stock===null)return bad(res,'Invalid stock');const existing=e.products.find(x=>x.id===b.id);if(existing)Object.assign(existing,{name:name.slice(0,70),price,stock});else e.products.push({id:crypto.randomUUID(),name:name.slice(0,70),price,stock});}
-      }else if(op==='archive-listing'){
-        const list=b.kind==='business'?e.businessTypes:e.products;const x=list.find(x=>x.id===b.id);if(!x)return bad(res,'Not found');x.archived=true;
-      }else if(op==='review-order'){
-        const o=e.orders.find(x=>x.id===b.id&&x.status==='pending');if(!o)return bad(res,'Pending order not found');
-        const a=e.accounts[o.memberId],co=e.companies.find(x=>x.id===o.companyId);if(!a||!co)return bad(res,'Account/company missing');
-        if(b.decision==='reject'){if(o.side==='buy')a.cash+=o.cost;else a.shares[co.id]=(a.shares[co.id]||0)+o.quantity;o.status='rejected';}
-        else if(b.decision==='approve'){
-          if(o.side==='buy'){if(co.supply<o.quantity)return bad(res,'Not enough shares available');co.supply-=o.quantity;a.shares[co.id]=(a.shares[co.id]||0)+o.quantity;}
-          else {a.cash+=o.cost;co.supply+=o.quantity;}o.status='approved';econRecord(e,'trade',o.memberId,o.side+' '+o.quantity+' '+co.name+' @ '+o.price);
-        }else return bad(res,'Invalid decision');
-      }else if(op==='review-trade'){
-        const t=e.trades.find(x=>x.id===b.id&&x.status==='pending');if(!t)return bad(res,'Trade not found');
-        if(b.decision==='approve'){e.accounts[t.toId].cash+=t.amount;t.status='approved';econRecord(e,'member_transfer',t.fromId,'To '+t.toId+': '+t.amount+' FC');}
-        else if(b.decision==='reject'){e.accounts[t.fromId].cash+=t.amount;t.status='rejected';}else return bad(res,'Invalid decision');
-      }else return bad(res,'Unknown admin action');
-      await save();return send(res,200,{ok:true});
-    }
-    return bad(res,'Unknown economy endpoint',404);
   }
 
   // CONFESSION ROOM — private multi-member live chat. God Admin identity is always FFGC.
@@ -1035,6 +919,99 @@ async function api(req, res, url) {
     const m=memberSession(req);
     return m ? send(res,200,{profile:safeProfile(m,true)}) : bad(res,'Member login required',401);
   }
+  // FFGC EVENTVERSE — permanent events, personal/team tasks, submissions and evaluation.
+  if (route.startsWith('/api/eventverse/')) {
+    const ev = db.eventverse ||= {events:[],teams:[],templates:[],notifications:[],history:[]};
+    ev.events ||= []; ev.teams ||= []; ev.templates ||= []; ev.notifications ||= []; ev.history ||= [];
+    const member = memberSession(req);
+    const stamp = () => new Date().toISOString();
+    const audit = (action, detail) => { ev.history.unshift({id:crypto.randomUUID(),at:stamp(),action,detail}); ev.history=ev.history.filter(x=>Date.now()-new Date(x.at).getTime()<=7*86400000).slice(0,1000); };
+    const notify = (memberId,title,body,eventId='') => ev.notifications.unshift({id:crypto.randomUUID(),memberId,title,body,eventId,at:stamp(),read:false});
+    const eventView = (e,viewerAdmin=false,viewerId='') => { const totals=new Map(); for(const t of (e.tasks||[])) for(const sub of (t.submissions||[])) if(sub.evaluation?.status==='evaluated'){const key=t.type==='team'?(ev.teams.find(tm=>tm.id===t.teamId)?.id||sub.memberId):sub.memberId;totals.set(key,(totals.get(key)||0)+(Number(sub.evaluation.score)||0));} const leaderboard=[...totals.entries()].map(([id,points])=>({id,name:ev.teams.find(tm=>tm.id===id)?.name||db.members.find(m=>m.id===id)?.name||'Member',points,kind:ev.teams.some(tm=>tm.id===id)?'team':'member'})).sort((a,b)=>b.points-a.points); return {...e,leaderboard,participants:(e.participants||[]).map(id=>({id,name:db.members.find(m=>m.id===id)?.name||'Former member'})),certificates:viewerAdmin?(e.certificates||[]):(e.certificates||[]).filter(c=>c.memberId===viewerId),feedback:viewerAdmin?(e.feedback||[]):[],tasks:(e.tasks||[]).map(t=>({...t,submissions:(t.submissions||[]).filter(x=>viewerAdmin||x.memberId===viewerId||(t.type==='team'&&ev.teams.some(tm=>tm.id===t.teamId&&(tm.memberIds||[]).includes(viewerId)))).map(x=>({...x,memberName:db.members.find(m=>m.id===x.memberId)?.name||'Former member'}))}))}; };
+    const taskFor = id => { for (const e of ev.events) { const t=(e.tasks||[]).find(x=>x.id===id); if(t)return {event:e,task:t}; } return null; };
+    if (route==='/api/eventverse/state' && req.method==='GET') {
+      if(!member&&!admin)return bad(res,'Login with your private member ID first',401);
+      let scheduledChanged=false; for(const e of ev.events){if(e.status==='upcoming'&&e.startAt&&new Date(e.startAt).getTime()<=Date.now()){e.status='active';scheduledChanged=true;for(const id of (e.participants||[]))notify(id,'Event is live',e.title+' has started.',e.id);} if(e.status==='active'&&e.endAt&&new Date(e.endAt).getTime()<=Date.now()){e.status='completed';e.completedAt=stamp();scheduledChanged=true;} for(const t of (e.tasks||[])){if(t.status==='scheduled'&&t.publishAt&&new Date(t.publishAt).getTime()<=Date.now()){t.status='open';for(const id of (e.participants||[]))notify(id,'New task available',t.title,e.id);scheduledChanged=true;} if(t.status==='open'&&t.dueAt&&new Date(t.dueAt).getTime()<=Date.now()){t.status='closed';scheduledChanged=true;}}} if(scheduledChanged)await save();
+      const mine=member?ev.events.filter(e=>(e.participants||[]).includes(member.id)).map(e=>eventView(e,false,member.id)):[];
+      const publicEvents=ev.events.filter(e=>e.status!=='draft' || admin).map(e=>eventView(e,admin,member?.id||''));
+      const myTeams=member?ev.teams.filter(t=>(t.memberIds||[]).includes(member.id)).map(t=>({...t,members:(t.memberIds||[]).map(id=>({id,name:db.members.find(m=>m.id===id)?.name||'Former member'}))})):[];
+      const notifications=member?ev.notifications.filter(n=>n.memberId===member.id).slice(0,60):[];
+      const history=admin?ev.history.filter(x=>Date.now()-new Date(x.at).getTime()<=7*86400000):undefined;
+      const allEvents=admin?ev.events.map(e=>eventView(e,true,'')):publicEvents;
+      return send(res,200,{admin,member:member?{id:member.id,name:member.name}:null,events:allEvents,myEvents:mine,teams:myTeams,allTeams:admin?ev.teams:undefined,templates:admin?ev.templates:undefined,notifications,history,members:admin?db.members.map(m=>({id:m.id,name:m.name})):undefined});
+    }
+    if(route==='/api/eventverse/admin'&&req.method==='POST'){
+      if(!admin)return bad(res,'God Admin authentication required',403);
+      const action=b.action;
+      if(action==='create_event'||action==='edit_event'){
+        if(!required(b.title,100)||!required(b.description||'Event details',2000))return bad(res,'Enter event title and description');
+        let e=action==='edit_event'?ev.events.find(x=>x.id===b.id):null;if(action==='edit_event'&&!e)return bad(res,'Event not found',404);
+        if(!e){e={id:crypto.randomUUID(),createdAt:stamp(),participants:[],tasks:[],leaderboard:[],feedback:[]};ev.events.unshift(e);}
+        Object.assign(e,{title:b.title.trim(),description:String(b.description||'').trim(),format:['competition','team_battle','weekly_challenge','tournament','nomination','voting','mystery','special','custom'].includes(b.format)?b.format:'custom',startAt:b.startAt||'',endAt:b.endAt||'',registrationOpen:b.registrationOpen!=='false',maxParticipants:Math.max(0,Number(b.maxParticipants)||0),visibility:b.visibility==='invite'?'invite':'public',inviteIds:Array.isArray(b.inviteIds)?b.inviteIds.filter(id=>db.members.some(m=>m.id===id)):[],rules:String(b.rules||'').slice(0,5000),status:['draft','upcoming','active','completed','archived','paused'].includes(b.status)?b.status:'draft',coverImage:b.coverImage===undefined?(e.coverImage||''):(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(b.coverImage||''))&&String(b.coverImage).length<=180000?b.coverImage:''),updatedAt:stamp()});
+        audit(action==='create_event'?'Event created':'Event updated',e.title);await save();return send(res,200,{ok:true,id:e.id});
+      }
+      if(action==='event_status') {const e=ev.events.find(x=>x.id===b.id);if(!e)return bad(res,'Event not found',404);if(!['draft','upcoming','active','paused','completed','archived'].includes(b.status))return bad(res,'Invalid status');e.status=b.status;e.updatedAt=stamp();if(b.status==='completed'||b.status==='archived')e.completedAt=stamp();audit('Event status changed',e.title+' → '+b.status);await save();return send(res,200,{ok:true});}
+      if(action==='delete_event'){const e=ev.events.find(x=>x.id===b.id);if(!e)return bad(res,'Event not found',404);ev.events=ev.events.filter(x=>x.id!==b.id);audit('Event deleted',e.title);await save();return send(res,200,{ok:true});}
+      if(action==='create_task'||action==='edit_task'){
+        if(b.status==='scheduled'&&!b.publishAt)return bad(res,'Set a publish time for a scheduled task');
+        const e=ev.events.find(x=>x.id===b.eventId);if(!e)return bad(res,'Event not found',404);e.tasks||=[];
+        if(!required(b.title,120)||!required(b.description,4000))return bad(res,'Enter task title and instructions');if(b.type==='team'&&!ev.teams.some(tm=>tm.id===b.teamId))return bad(res,'Choose a valid team for this team task');
+        let t=action==='edit_task'?e.tasks.find(x=>x.id===b.id):null;if(action==='edit_task'&&!t)return bad(res,'Task not found',404);
+        if(!t){t={id:crypto.randomUUID(),submissions:[],comments:[],evaluations:[],history:[]};e.tasks.unshift(t);}
+        if(t.title)t.history.unshift({at:stamp(),title:t.title,description:t.description});t.history=(t.history||[]).filter(x=>Date.now()-new Date(x.at).getTime()<=7*86400000);
+        Object.assign(t,{title:b.title.trim(),description:b.description.trim(),image:b.image===undefined?(t.image||''):(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(b.image||''))&&String(b.image).length<=180000?b.image:''),type:b.type==='team'?'team':'personal',teamId:b.teamId||'',assigneeIds:Array.isArray(b.assigneeIds)?b.assigneeIds.filter(id=>db.members.some(m=>m.id===id)):[],maxPoints:Math.max(0,Number(b.maxPoints)||0),priority:['normal','important','urgent'].includes(b.priority)?b.priority:'normal',dueAt:b.dueAt||'',publishAt:b.publishAt||'',status:['draft','scheduled','open','closed'].includes(b.status)?b.status:'open',rubric:Array.isArray(b.rubric)?b.rubric.slice(0,8).map(x=>({name:String(x.name||'Criterion').slice(0,60),points:Math.max(0,Number(x.points)||0)})):[],updatedAt:stamp()});
+        audit('Task '+(action==='create_task'?'created':'updated'),e.title+' / '+t.title);await save();return send(res,200,{ok:true,id:t.id});
+      }
+      if(action==='delete_task'){const found=taskFor(b.id);if(!found)return bad(res,'Task not found',404);found.event.tasks=found.event.tasks.filter(x=>x.id!==b.id);audit('Task deleted',found.task.title);await save();return send(res,200,{ok:true});}
+      if(action==='evaluate'){
+        const found=taskFor(b.taskId);if(!found)return bad(res,'Task not found',404);const sub=found.task.submissions.find(x=>x.id===b.submissionId);if(!sub)return bad(res,'Submission not found',404);
+        const score=Math.max(0,Math.min(found.task.maxPoints,Number(b.score)||0));const before=sub.evaluation?{...sub.evaluation}:null;
+        found.task.evaluations||=[];found.task.evaluations.unshift({at:stamp(),submissionId:sub.id,memberId:sub.memberId,previous:before,score,remarks:String(b.remarks||'').slice(0,1000),status:b.status==='revision'?'revision':'evaluated'});
+        sub.evaluation={score,remarks:String(b.remarks||'').slice(0,1000),status:b.status==='revision'?'revision':'evaluated',at:stamp()};
+        if(sub.memberId)notify(sub.memberId,'Task evaluated',found.task.title+' · '+sub.evaluation.status+' · '+score+' points',found.event.id);
+        audit('Submission evaluated',found.task.title+' · '+score+' points');await save();return send(res,200,{ok:true});
+      }
+      if(action==='create_team'){
+        if(!required(b.name,60)||!Array.isArray(b.memberIds)||!b.memberIds.length)return bad(res,'Enter team name and members');
+        const ids=[...new Set(b.memberIds.filter(id=>db.members.some(m=>m.id===id)))];if(!ids.length)return bad(res,'Select valid members');
+        const team={id:crypto.randomUUID(),name:b.name.trim(),memberIds:ids,leaderId:ids.includes(b.leaderId)?b.leaderId:ids[0],createdAt:stamp()};ev.teams.push(team);audit('Team created',team.name);await save();return send(res,200,{ok:true,id:team.id});
+      }
+      if(action==='template_apply'){const template=ev.templates.find(x=>x.id===b.templateId);if(!template)return bad(res,'Template not found',404);if(!required(b.title||template.name,100))return bad(res,'Enter event title');const e={id:crypto.randomUUID(),title:String(b.title||template.name).trim(),description:String(b.description||'Created from saved event template').slice(0,2000),format:template.format||'custom',rules:template.rules||'',status:'upcoming',startAt:b.startAt||'',endAt:b.endAt||'',registrationOpen:true,maxParticipants:0,visibility:'public',inviteIds:[],participants:[],leaderboard:[],feedback:[],certificates:[],tasks:(template.tasks||[]).map(t=>({...t,id:crypto.randomUUID(),submissions:[],comments:[],evaluations:[],history:[],status:'open',dueAt:'',publishAt:''})),createdAt:stamp(),updatedAt:stamp()};ev.events.unshift(e);audit('Event created from template',e.title);await save();return send(res,200,{ok:true,id:e.id});}
+      if(action==='template_save'){
+        const e=ev.events.find(x=>x.id===b.eventId);if(!e)return bad(res,'Event not found',404);ev.templates.unshift({id:crypto.randomUUID(),name:String(b.name||e.title).slice(0,100),format:e.format,rules:e.rules,tasks:(e.tasks||[]).map(t=>({title:t.title,description:t.description,type:t.type,maxPoints:t.maxPoints,priority:t.priority,rubric:t.rubric})),createdAt:stamp()});await save();return send(res,200,{ok:true});
+      }
+      if(action==='publish_notice'){
+        if(!required(b.title,120)||!required(b.body,1500))return bad(res,'Enter announcement title and message');const ids=Array.isArray(b.memberIds)?b.memberIds:db.members.map(m=>m.id);ids.forEach(id=>notify(id,b.title.trim(),b.body.trim(),b.eventId||''));audit('Eventverse announcement',b.title);await save();return send(res,200,{ok:true});
+      }
+      if(action==='comment'){const found=taskFor(b.taskId);if(!found)return bad(res,'Task not found',404);if(!required(b.body,1000))return bad(res,'Write a message');found.task.comments||=[];found.task.comments.push({id:crypto.randomUUID(),memberId:'admin',name:'FFGC',body:b.body.trim(),at:stamp()});for(const id of (found.event.participants||[]))notify(id,'Task discussion update',found.task.title+' has a new FFGC reply.',found.event.id);await save();return send(res,200,{ok:true});}
+      if(action==='publish_certificate'){
+        const e=ev.events.find(x=>x.id===b.eventId);if(!e)return bad(res,'Event not found',404);const id=b.memberId;if(!db.members.some(m=>m.id===id))return bad(res,'Member not found');e.certificates||=[];if(!e.certificates.some(c=>c.memberId===id))e.certificates.push({memberId:id,code:'FFGC-'+crypto.randomBytes(4).toString('hex').toUpperCase(),at:stamp()});notify(id,'Certificate available','Your certificate for '+e.title+' is ready.',e.id);await save();return send(res,200,{ok:true});
+      }
+      return bad(res,'Unknown Eventverse admin action');
+    }
+    if(route==='/api/eventverse/member'&&req.method==='POST'){
+      if(!member)return bad(res,'Login with your private member ID first',401);
+      if(b.action==='register'){
+        const e=ev.events.find(x=>x.id===b.eventId);if(!e)return bad(res,'Event not found',404);if(!e.registrationOpen||!['upcoming','active'].includes(e.status))return bad(res,'Registration is closed');if(e.visibility==='invite'&&!(e.inviteIds||[]).includes(member.id))return bad(res,'This event is invitation-only');e.participants||=[];if(!e.participants.includes(member.id)){if(e.maxParticipants&&e.participants.length>=e.maxParticipants)return bad(res,'Event is full');e.participants.push(member.id);notify(member.id,'Registration confirmed','You joined '+e.title+'.',e.id);audit('Member registered',member.name+' → '+e.title);}await save();return send(res,200,{ok:true});
+      }
+      if(b.action==='submit'){
+        const found=taskFor(b.taskId);if(!found)return bad(res,'Task not found',404);const {event:e,task:t}=found;if(!(e.participants||[]).includes(member.id))return bad(res,'Join this event before submitting',403);if(['completed','archived'].includes(e.status))return bad(res,'This event is closed');if(t.dueAt&&new Date(t.dueAt).getTime()<=Date.now())return bad(res,'Submission deadline has passed');if(t.status!=='open')return bad(res,'Task is not accepting submissions');if(t.type==='personal'&&t.assigneeIds?.length&&!t.assigneeIds.includes(member.id))return bad(res,'This task is assigned to another member',403);if(t.type==='team'&&!ev.teams.some(team=>team.id===t.teamId&&(team.memberIds||[]).includes(member.id)))return bad(res,'You are not in the assigned team',403);
+        const textBody=String(b.text||'').slice(0,5000),imageData=String(b.image||'');if(!textBody&&!imageData)return bad(res,'Add an answer or image');if(imageData&&(!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(imageData)||imageData.length>180000))return bad(res,'Image must be JPG, PNG or WebP and under 130 KB after compression');
+        const old=t.submissions.find(x=>x.memberId===member.id);if(old&&old.evaluation?.status!=='revision')return bad(res,'A submission already exists and is not open for revision');
+        const sub={id:old?.id||crypto.randomUUID(),memberId:member.id,text:textBody,image:imageData,submittedAt:stamp(),revision:(old?.revision||0)+1,evaluation:null};if(old)t.submissions[t.submissions.indexOf(old)]=sub;else t.submissions.unshift(sub);notify(member.id,'Submission received',t.title+' has been submitted.',e.id);audit('Task submitted',member.name+' → '+t.title);await save();return send(res,200,{ok:true});
+      }
+      if(b.action==='comment'){
+        const found=taskFor(b.taskId);if(!found)return bad(res,'Task not found',404);if(!(found.event.participants||[]).includes(member.id))return bad(res,'Join this event to use its discussion',403);if(!required(b.body,1000))return bad(res,'Write a message');found.task.comments||=[];found.task.comments.push({id:crypto.randomUUID(),memberId:member.id,name:member.name,body:b.body.trim(),at:stamp()});await save();return send(res,200,{ok:true});
+      }
+      if(b.action==='feedback'){
+        const e=ev.events.find(x=>x.id===b.eventId);if(!e||(e.participants||[]).indexOf(member.id)<0)return bad(res,'Event not found or not joined',404);e.feedback||=[];e.feedback.push({memberId:member.id,rating:Math.max(1,Math.min(5,Number(b.rating)||5)),body:String(b.body||'').slice(0,1000),at:stamp()});await save();return send(res,200,{ok:true});
+      }
+      if(b.action==='read_notification'){const n=ev.notifications.find(x=>x.id===b.id&&x.memberId===member.id);if(n)n.read=true;await save();return send(res,200,{ok:true});}
+      return bad(res,'Unknown Eventverse member action');
+    }
+    return bad(res,'Unknown Eventverse endpoint',404);
+  }
+
   // DAILY CHECK-IN — only an authenticated private-ID member can check in.
   if (route === '/api/checkin/member' && req.method === 'GET') {
     const m = memberSession(req);
@@ -1704,96 +1681,6 @@ function settleAuctions() {
 }
 
 
-// ECONOMIC EMPIRE: independent virtual economy (never touches ranking points/auction coins).
-function economyStore(){
-  if(!db.economy)db.economy={enabled:true,marketOpen:true,approvalMode:false,initialCash:2000,accounts:{},companies:[],businessTypes:[],businesses:[],products:[],items:[],trades:[],orders:[],schedules:[],history:[],lastTick:Date.now()};
-  const e=db.economy;
-  // One-time seed: never overwrite or reset existing accounts, listings or purchases.
-  e.seedVersion ||= 0;
-  e.autoMarket ??= true; e.marketEvents ||= []; e.notifications ||= []; e.missions ||= {}; e.lastAutoTick ||= Date.now();
-  if(e.seedVersion<1){
-    const companySeeds=[['Royal Crown Industries',500,100],['Diamond Empire Ltd.',450,120],['Thunderbolt Energy',320,150],['NovaTech Solutions',280,180],['Imperial Banking Corp.',250,200],['Phoenix Motors',220,220],['CyberCore Technologies',180,250],['Skyline Real Estate',150,300],['MegaMart Retail',120,350],['GreenFuture Energy',100,400],['PixelVerse Gaming',75,500],['StarLink Entertainment',50,600]];
-    for(const [name,price,supply] of companySeeds)if(!e.companies.some(x=>x.name.toLowerCase()===name.toLowerCase()))e.companies.push({id:crypto.randomUUID(),name,price,supply,history:[{at:new Date().toISOString(),price}],frozen:false});
-    const businessSeeds=[['Royal Café',8000,400],['Gaming Lounge',12000,650],['Premium Restaurant',18000,950],['Shopping Complex',25000,1300],['Luxury Hotel',40000,2100],['Finance Corporation',60000,3200],['Industrial Factory',85000,4500],['Diamond Corporation',120000,6500],['Royal Business Empire',200000,11000]];
-    for(const [name,price,income] of businessSeeds)if(!e.businessTypes.some(x=>x.name.toLowerCase()===name.toLowerCase()))e.businessTypes.push({id:crypto.randomUUID(),name,price,income,maintenance:Math.round(income*.2)});
-    const productSeeds=[['FC Bonus Pack',1500,'bonus',1],['Trading Pass',2500,'trading',7],['Banking Plus',4000,'analytics',0],['Business Booster',6000,'business_boost',7],['VIP Investor Badge',10000,'vip_badge',30],['Empire Prestige',25000,'prestige',0]];
-    for(const [name,price,effect,days] of productSeeds)if(!e.products.some(x=>x.name.toLowerCase()===name.toLowerCase()))e.products.push({id:crypto.randomUUID(),name,price,stock:-1,effect,days});
-    e.seedVersion=1;
-  }
-  if(e.seedVersion<2){for(const t of e.businessTypes)if(!t.maintenance)t.maintenance=Math.round(t.income*.2);e.seedVersion=2;}
-  for(const k of ['companies','businessTypes','businesses','products','items','trades','orders','schedules','history'])e[k] ||= [];
-  e.accounts ||= {};
-  for(const m of db.members) if(!e.accounts[m.id])e.accounts[m.id]={cash:e.initialCash??2000,shares:{}};
-  return e;
-}
-function econMarketOpen(e){const d=new Date();const ist=new Date(d.getTime()+330*60000);const hour=ist.getUTCHours();return e.marketOpen!==false&&hour>=8&&hour<22;}
-function econRecord(e,action,memberId,detail){e.history.unshift({id:crypto.randomUUID(),at:new Date().toISOString(),action,memberId,detail});if(e.history.length>2500)e.history.length=2500;}
-function econNum(x){const n=Number(x);return Number.isSafeInteger(n)&&n>=0&&n<=100000000?n:null;}
-function econNotify(e,memberId,message){e.notifications.unshift({id:crypto.randomUUID(),memberId,message,at:Date.now()});if(e.notifications.length>1500)e.notifications.length=1500;}
-function econBusinessLevel(owned){return Math.max(1,Math.min(5,owned.level||1));}
-function econMaintenance(t,owned){return Math.round(t.maintenance*(1+.25*(econBusinessLevel(owned)-1)));}
-function econIncome(t,owned){return Math.round(t.income*(1+.3*(econBusinessLevel(owned)-1)));}
-function econAutoMarket(e,now){
- if(!econMarketOpen(e)||e.autoMarket===false)return false;
- const tick=10000, steps=Math.min(360,Math.floor((now-e.lastAutoTick)/tick));if(steps<=0)return false;
- // Server-side movement persists across redeploys; only completed market-open ticks are applied.
- e.lastAutoTick=now;let changed=false;
- const hourKey=Math.floor((now+330*60000)/3600000);
- if(e.lastEventHour!==hourKey){
-   e.lastEventHour=hourKey;
-   const categories=['Technology Boost','Retail Momentum','Energy Slowdown','Market Stability'];
-   const eventName=categories[hourKey%categories.length];
-   e.marketEvents.unshift({at:now,title:eventName});e.marketEvents=e.marketEvents.slice(0,30);
-   econRecord(e,'market_event',null,eventName);changed=true;
- }
-
- for(const co of e.companies){if(co.archived||co.frozen||e.schedules.some(sc=>sc.companyId===co.id&&sc.status==='running'))continue;
-  const old=co.price;const seed=crypto.createHash('sha256').update(co.id+':'+Math.floor(now/tick)).digest().readUInt32BE(0)/4294967295;
-  const drift=(seed-.5)*.008;const next=Math.max(1,Math.round(co.price*(1+drift)));
-  if(next!==old){co.price=next;co.history ||= [];co.history.push({at:new Date(now).toISOString(),price:next});if(co.history.length>2000)co.history.splice(0,co.history.length-2000);changed=true;}
- }
- return changed;
-}
-function econSettle(){
-  if(!db.economy)return false;
-  const e=economyStore(),now=Date.now();let changed=econAutoMarket(e,now);
-  for(const sc of e.schedules){
-    if(sc.status==='cancelled'||sc.status==='done')continue;
-    const co=e.companies.find(x=>x.id===sc.companyId);
-    if(!co||co.archived){sc.status='cancelled';changed=true;continue;}
-    if(now<sc.startAt)continue;
-    if(sc.status==='pending'){sc.status='running';sc.from=co.price;changed=true;}
-    const progress=Math.min(1,Math.max(0,(now-sc.startAt)/Math.max(1000,sc.durationMs)));
-    const next=Math.max(1,Math.round(sc.from+(sc.target-sc.from)*progress));
-    if(next!==co.price){co.price=next;co.history ||= [];co.history.push({at:new Date(now).toISOString(),price:next});if(co.history.length>2000)co.history.shift();changed=true;}
-    if(progress===1){sc.status='done';econRecord(e,'scheduled_price',null,co.name+' reached '+co.price+' FC');changed=true;}
-  }
-  // One payout per due cycle, only after available FC pays maintenance first.
-  for(const owned of e.businesses){const type=e.businessTypes.find(x=>x.id===owned.typeId);if(!type||type.archived)continue;
-    const acc=e.accounts[owned.memberId];if(!acc)continue;
-    owned.paidAt ||= owned.purchasedAt||now;
-    if(now-owned.paidAt>=6*86400000 && !owned.remindedAt){econNotify(e,owned.memberId,type.name+' maintenance due soon: '+econMaintenance(type,owned)+' FC');owned.remindedAt=now;changed=true;}
-    let cycles=0;
-    while(now-owned.paidAt>=7*86400000&&cycles++<12){
-      const fee=econMaintenance(type,owned);if(acc.cash<fee){if(!owned.locked){owned.locked=true;econNotify(e,owned.memberId,type.name+' income locked: maintenance '+fee+' FC required');changed=true;}break;}
-      acc.cash-=fee;let income=econIncome(type,owned);
-      const bonus=e.items.find(x=>x.memberId===owned.memberId&&x.effect==='bonus'&&x.status==='owned');if(bonus){income=Math.round(income*1.1);bonus.status='used';}
-      const boost=e.items.some(x=>x.memberId===owned.memberId&&x.effect==='business_boost'&&x.businessId===owned.id&&x.expiresAt>now);if(boost)income=Math.round(income*1.2);
-      acc.cash+=income;owned.paidAt+=7*86400000;owned.locked=false;owned.remindedAt=null;
-      econRecord(e,'business_income',owned.memberId,type.name+': maintenance -'+fee+' FC; income +'+income+' FC');econNotify(e,owned.memberId,type.name+' weekly income +'+income+' FC (maintenance -'+fee+' FC)');changed=true;
-    }
-  }
-  return changed;
-}
-function economyView(e,member,admin){
- const companies=e.companies.filter(x=>!x.archived).map(x=>({id:x.id,name:x.name,price:x.price,supply:x.supply,history:x.history||[],frozen:!!x.frozen}));
- const account=member?e.accounts[member.id]:null;
- const memberBusinesses=e.businesses.filter(x=>member&&x.memberId===member.id);
- const networth=account?account.cash+companies.reduce((sum,c)=>sum+(account.shares[c.id]||0)*c.price,0)+memberBusinesses.reduce((sum,b)=>sum+(e.businessTypes.find(t=>t.id===b.typeId)?.price||0),0):0;
- const ranks=db.members.map(m=>{const a=e.accounts[m.id]||{cash:0,shares:{}};const items=e.items.filter(x=>x.memberId===m.id);const badges=[items.some(x=>x.effect==='vip_badge'&&x.expiresAt>Date.now())?'👑 VIP':'',items.some(x=>x.effect==='prestige')?'💎 Prestige':''].filter(Boolean).join(' ');return {name:m.name,badges,netWorth:a.cash+companies.reduce((sum,c)=>sum+(a.shares[c.id]||0)*c.price,0)+e.businesses.filter(b=>b.memberId===m.id).reduce((sum,b)=>sum+(e.businessTypes.find(t=>t.id===b.typeId)?.price||0),0)}}).sort((a,b)=>b.netWorth-a.netWorth);
- return {enabled:e.enabled,marketOpen:econMarketOpen(e),approvalMode:e.approvalMode,member:member?{id:member.id,name:member.name,account,netWorth:networth,businesses:memberBusinesses,notifications:e.notifications.filter(x=>x.memberId===member.id).slice(0,30),missions:e.missions[member.id+':'+new Date(Date.now()+330*60000).toISOString().slice(0,10)]||[],items:e.items.filter(x=>x.memberId===member.id),orders:e.orders.filter(x=>x.memberId===member.id),trades:e.trades.filter(x=>x.fromId===member.id||x.toId===member.id),history:e.history.filter(x=>x.memberId===member.id).slice(0,60),achievements:[...(e.orders.some(x=>x.memberId===member.id&&x.side==='buy'&&x.status==='approved')?['🏅 First Investor']:[]),...(memberBusinesses.length?['🏢 Business Tycoon']:[]),...(networth>=100000?['💎 Millionaire Club']:[]),...(e.orders.filter(x=>x.memberId===member.id&&x.status==='approved').length>=50?['📈 Market Legend']:[])]}:null,companies,businessTypes:e.businessTypes.filter(x=>!x.archived),autoMarket:e.autoMarket,marketEvents:e.marketEvents.slice(0,12),products:e.products.filter(x=>!x.archived),rankings:ranks.slice(0,30),tradeMembers:member?db.members.filter(x=>x.id!==member.id).map(x=>({id:x.id,name:x.name})):[],activity:e.orders.filter(x=>x.status==='approved').slice(-20).reverse().map(x=>({company:e.companies.find(c=>c.id===x.companyId)?.name||'Company',side:x.side,quantity:x.quantity,at:x.at})),members:admin?db.members.map(m=>({id:m.id,name:m.name,cash:e.accounts[m.id]?.cash||0})):undefined,admin:admin?{schedules:e.schedules,orders:e.orders,trades:e.trades,history:e.history.slice(0,200),businesses:e.businesses,holdings:db.members.map(m=>({name:m.name,id:m.id,shares:e.accounts[m.id]?.shares||{},orders:e.orders.filter(o=>o.memberId===m.id).slice(-50)})),items:e.items,settings:{initialCash:e.initialCash,autoMarket:e.autoMarket,fcCirculation:Object.values(e.accounts).reduce((n,a)=>n+a.cash,0),lockedBusinesses:e.businesses.filter(b=>b.locked).length}}:undefined};
-}
-
 // STATIC WEBSITE FILES
 const types = {
   '.html': 'text/html; charset=utf-8',
@@ -1833,11 +1720,9 @@ const allowedFiles = new Set([
   'confession.js',
   'confession.css',
 
-  // Economic Empire
-  'economy.html',
-  'economy-admin.html',
-  'economy.css',
-  'economy.js',
+  // FFGC Eventverse
+  'eventverse.js',
+  'eventverse.css',
 
   // Elimination Arena
   'elimination.js',
@@ -1938,15 +1823,11 @@ const server = http.createServer((req, res) => {
   );
 });
 
-// BACKGROUND AUCTION AND ECONOMY SETTLEMENT
+// BACKGROUND AUCTION SETTLEMENT
 setInterval(() => {
   const run = async () => {
     const auctionChanged = settleAuctions();
-    const econChanged = econSettle();
-
-    if (auctionChanged || econChanged) {
-      await save();
-    }
+    if (auctionChanged) await save();
   };
 
   requestQueue = requestQueue
@@ -1961,13 +1842,8 @@ load()
   .then(async () => {
     await applyKartikEviction();
 
-    const previous = db.economy?.seedVersion || 0;
-
-    economyStore();
-
-    if (previous < 1) {
-      await save();
-    }
+    if (db.economy) { delete db.economy; await save(); }
+    db.eventverse ||= {events:[],teams:[],templates:[],notifications:[],history:[]};
   })
   .then(() =>
     server.listen(PORT, () => {
